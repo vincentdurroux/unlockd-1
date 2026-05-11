@@ -2490,6 +2490,7 @@ function ProMap({ pros, onSelectPro, center }: { pros: Professional[], onSelectP
                 />
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-white rounded-lg shadow-xl border border-slate-100 whitespace-nowrap opacity-0 group-hover/pin:opacity-100 transition-opacity pointer-events-none z-50">
                   <p className="text-[10px] font-bold text-brand-navy">{pro.name}</p>
+                  <p className="text-[8px] text-slate-400 font-medium">Click to see details</p>
                 </div>
               </div>
             </AdvancedMarker>
@@ -2521,6 +2522,18 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
 
   const [selectedLanguage, setSelectedLanguage] = useState('All');
   const [selectedPro, setSelectedPro] = useState<Professional | null>(null);
+
+  const scrollToPro = (pro: Professional) => {
+    const element = document.getElementById(`pro-card-${pro.id}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Add a temporary highlight effect
+      element.classList.add('ring-4', 'ring-brand-blue/30', 'scale-[1.02]');
+      setTimeout(() => {
+        element.classList.remove('ring-4', 'ring-brand-blue/30', 'scale-[1.02]');
+      }, 2000);
+    }
+  };
 
   useEffect(() => {
     if (initialProId) {
@@ -2895,7 +2908,7 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
           >
              <ProMap 
                pros={filteredPros} 
-               onSelectPro={setSelectedPro} 
+               onSelectPro={(pro) => scrollToPro(pro)} 
                center={userLocation || { lat: 39.4699, lng: -0.3763 }} 
              />
           </motion.div>
@@ -2906,6 +2919,7 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
               filteredPros.map((pro, index) => (
                 <motion.div 
                   key={pro.id} 
+                  id={`pro-card-${pro.id}`}
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
