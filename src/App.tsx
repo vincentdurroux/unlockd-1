@@ -739,10 +739,13 @@ export default function App() {
 
   // Form states for Pro
   const [proName, setProName] = useState('');
+  const [proCompany, setProCompany] = useState('');
   const [proCategory, setProCategory] = useState('');
   const [proEmail, setProEmail] = useState('');
   const [proPhone, setProPhone] = useState('');
   const [proRecommendation, setProRecommendation] = useState('');
+  const [isSubmittingPro, setIsSubmittingPro] = useState(false);
+  const [proError, setProError] = useState<string | null>(null);
 
   // Form states for Ad
   const [adTitle, setAdTitle] = useState('');
@@ -772,21 +775,39 @@ export default function App() {
     }
   };
 
-  const handlePostPro = () => {
-    if (!proName || !proCategory) return;
+  const handlePostPro = async () => {
+    if ((!proName && !proCompany) || !proCategory || (!proEmail.trim() && !proPhone.trim())) return;
     
-    // In a real app, we would send this to a service
-    console.log('Posting pro:', { proName, proCategory, proEmail, proPhone, proRecommendation });
+    setIsSubmittingPro(true);
+    setProError(null);
     
-    // Reset form
-    setProName('');
-    setProCategory('');
-    setProEmail('');
-    setProPhone('');
-    setProRecommendation('');
-    setShowAddPro(false);
-    
-    alert('Thank you for your recommendation! Our team will review it.');
+    try {
+      await proService.submitRecommendation({
+        user_email: "vincentdurroux@gmail.com",
+        pro_name: proName,
+        company_name: proCompany,
+        pro_category: proCategory,
+        pro_email: proEmail,
+        pro_phone: proPhone,
+        notes: proRecommendation
+      });
+      
+      // Reset form
+      setProName('');
+      setProCompany('');
+      setProCategory('');
+      setProEmail('');
+      setProPhone('');
+      setProRecommendation('');
+      setShowAddPro(false);
+      
+      alert('Thank you for your recommendation! Our team will review it.');
+    } catch (error) {
+      console.error('Error posting pro:', error);
+      setProError('Failed to send recommendation. Please try again.');
+    } finally {
+      setIsSubmittingPro(false);
+    }
   };
 
   const handlePostAd = async () => {
@@ -1179,6 +1200,11 @@ export default function App() {
                 </div>
 
                 <div className="p-8 pt-4 space-y-6">
+                  {proError && (
+                    <div className="p-3 bg-red-50 text-red-500 text-xs font-bold rounded-xl border border-red-100">
+                      {proError}
+                    </div>
+                  )}
                   <div className="space-y-5">
                     {/* Basic Info Section */}
                     <div className="space-y-3">
@@ -1186,21 +1212,37 @@ export default function App() {
                         <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Professional Identity</p>
                       </div>
                       
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        <input 
-                          type="text" 
-                          placeholder="Full Name" 
-                          value={proName}
-                          onChange={(e) => setProName(e.target.value)}
-                          className="w-full px-4 py-3.5 bg-slate-50/50 rounded-xl border border-slate-100 focus:border-brand-yellow/30 focus:bg-white focus:ring-4 focus:ring-brand-yellow/5 outline-none text-sm font-semibold transition-all placeholder:text-slate-300" 
-                        />
-                        <input 
-                          type="text" 
-                          placeholder="Category" 
-                          value={proCategory}
-                          onChange={(e) => setProCategory(e.target.value)}
-                          className="w-full px-4 py-3.5 bg-slate-50/50 rounded-xl border border-slate-100 focus:border-brand-yellow/30 focus:bg-white focus:ring-4 focus:ring-brand-yellow/5 outline-none text-sm font-semibold transition-all placeholder:text-slate-300" 
-                        />
+                      <div className="space-y-4">
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Full Name</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Maria Gonzalez" 
+                            value={proName}
+                            onChange={(e) => setProName(e.target.value)}
+                            className="w-full px-4 py-3.5 bg-slate-50/50 rounded-xl border border-slate-100 focus:border-brand-yellow/30 focus:bg-white focus:ring-4 focus:ring-brand-yellow/5 outline-none text-sm font-semibold transition-all placeholder:text-slate-300" 
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Company Name</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Legal Experts SL" 
+                            value={proCompany}
+                            onChange={(e) => setProCompany(e.target.value)}
+                            className="w-full px-4 py-3.5 bg-slate-50/50 rounded-xl border border-slate-100 focus:border-brand-yellow/30 focus:bg-white focus:ring-4 focus:ring-brand-yellow/5 outline-none text-sm font-semibold transition-all placeholder:text-slate-300" 
+                          />
+                        </div>
+                        <div className="space-y-1.5">
+                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Profession</label>
+                          <input 
+                            type="text" 
+                            placeholder="e.g. Attorney, Plumber, Doctor" 
+                            value={proCategory}
+                            onChange={(e) => setProCategory(e.target.value)}
+                            className="w-full px-4 py-3.5 bg-slate-50/50 rounded-xl border border-slate-100 focus:border-brand-yellow/30 focus:bg-white focus:ring-4 focus:ring-brand-yellow/5 outline-none text-sm font-semibold transition-all placeholder:text-slate-300" 
+                          />
+                        </div>
                       </div>
                     </div>
 
@@ -1245,9 +1287,9 @@ export default function App() {
                     <button 
                       className="w-full py-4 bg-brand-yellow text-white text-sm font-bold rounded-2xl shadow-lg shadow-brand-yellow/20 hover:shadow-brand-yellow/30 active:scale-[0.98] transition-all disabled:opacity-40 disabled:grayscale disabled:shadow-none uppercase tracking-widest" 
                       onClick={handlePostPro}
-                      disabled={!proName || !proCategory || (!proEmail.trim() && !proPhone.trim())}
+                      disabled={isSubmittingPro || (!proName && !proCompany) || !proCategory || (!proEmail.trim() && !proPhone.trim())}
                     >
-                      Post Recommendation
+                      {isSubmittingPro ? 'Sending...' : 'Post Recommendation'}
                     </button>
                     <button 
                       onClick={() => setShowAddPro(false)}
@@ -2002,22 +2044,37 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
             <div key={rec.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all space-y-4 text-left">
               <div className="flex justify-between items-start">
                 <div className="space-y-1">
-                  <h3 className="font-bold text-lg text-slate-900">{rec.pro_name}</h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-lg text-slate-900">{rec.pro_name || rec.company_name}</h3>
+                    {rec.pro_name && rec.company_name && (
+                      <span className="text-slate-400 font-medium text-sm">at {rec.company_name}</span>
+                    )}
+                  </div>
                   <span className="px-2 py-0.5 bg-slate-100 text-[10px] font-black uppercase text-slate-500 rounded-full tracking-widest">{rec.pro_category}</span>
                 </div>
                 <span className="text-[10px] text-slate-400 font-bold uppercase">{rec.created_at ? new Date(rec.created_at).toLocaleDateString() : 'Recently'}</span>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                {rec.pro_contact && (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                {rec.pro_email && (
                   <div className="space-y-1">
-                    <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Contact Info</p>
-                    <p className="font-medium text-slate-700">{rec.pro_contact}</p>
+                    <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider flex items-center gap-1">
+                      <Mail className="w-3 h-3" /> Email
+                    </p>
+                    <p className="font-medium text-slate-700 truncate">{rec.pro_email}</p>
+                  </div>
+                )}
+                {rec.pro_phone && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider flex items-center gap-1">
+                      <Phone className="w-3 h-3" /> Phone
+                    </p>
+                    <p className="font-medium text-slate-700">{rec.pro_phone}</p>
                   </div>
                 )}
                 <div className="space-y-1">
                   <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Suggested by</p>
-                  <p className="font-medium text-brand-blue">{rec.user_email}</p>
+                  <p className="font-medium text-brand-blue truncate">{rec.user_email}</p>
                 </div>
               </div>
 
@@ -2132,7 +2189,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                   </div>
                 )}
                 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Full Name</label>
                     <input 
@@ -2154,7 +2211,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Profession (Métier)</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Profession</label>
                   <input 
                     required
                     value={formData.pro_category}
@@ -2227,7 +2284,7 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 text-center md:text-left mb-12">
         <div className="space-y-1 flex flex-col items-center md:items-start">
-          <h2 className="text-[22px] font-bold font-display text-brand-navy">Hola, Vincent!</h2>
+          <h2 className="text-[22px] font-bold font-display text-brand-navy">Hello, Vincent!</h2>
           <p className="text-slate-500 text-sm">Welcome back to your local community.</p>
         </div>
       </div>
