@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Logo } from './components/Logo';
 import { 
   Home, 
@@ -11,9 +11,13 @@ import {
   Star, 
   CheckCircle2, 
   MessageCircle,
+  Instagram,
+  Link,
   Award, 
   ChevronRight,
   ChevronLeft,
+  ChevronDown,
+  Globe,
   ArrowLeft,
   Filter,
   Languages,
@@ -48,7 +52,6 @@ import {
   Trophy,
   Palmtree,
   SlidersHorizontal,
-  ChevronDown,
   LayoutGrid,
   List as ListIcon,
   Send,
@@ -64,8 +67,8 @@ import {
   Armchair,
   Bike,
   MessageSquare,
-  Globe,
   ShieldCheck,
+  Check,
   MoreHorizontal
 } from 'lucide-react';
 import { storageService } from './lib/storage';
@@ -75,6 +78,8 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { GoogleGenAI } from "@google/genai";
 import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
+import { useProfessionals } from './hooks/useProfessionals';
+import { proService } from './services/proService';
 
 const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 
@@ -109,7 +114,7 @@ function formatRelativeTime(dateString: string | undefined) {
 
 // --- Types ---
 
-type View = 'home' | 'explore' | 'events' | 'guides' | 'profile' | 'community' | 'marketplace' | 'community-thread' | 'messages';
+type View = 'home' | 'explore' | 'events' | 'guides' | 'profile' | 'community' | 'marketplace' | 'community-thread' | 'messages' | 'admin';
 
 interface Professional {
   id: string;
@@ -125,6 +130,7 @@ interface Professional {
   testimonials: { author: string; avatar: string; text: string; rating: number; date: string }[];
   phone?: string;
   email?: string;
+  website?: string;
   experience?: string;
   location?: string;
   coordinates?: { lat: number; lng: number };
@@ -174,7 +180,7 @@ const MOCK_PROS: Professional[] = [
     phone: '+34 612 345 678',
     email: 'carlos.plumbing@example.com',
     experience: '15 years',
-    location: 'Ruzafa, Valencia',
+    location: 'Calle de la Paz, 4, 46003 Valencia',
     coordinates: { lat: 39.4614, lng: -0.3756 },
     services: [
       { name: 'Emergency Leak Repair', price: 60, description: 'Fast response for urgent leaks.' },
@@ -198,7 +204,7 @@ const MOCK_PROS: Professional[] = [
     phone: '+34 698 765 432',
     email: 'elena.law@example.com',
     experience: '8 years',
-    location: 'Ciutat Vella, Valencia',
+    location: 'Plaça de l\'Ajuntament, 1, 46002 Valencia',
     coordinates: { lat: 39.4746, lng: -0.3768 },
     services: [
       { name: 'NIE Application', price: 150, description: 'Full assistance with NIE paperwork.' },
@@ -221,7 +227,7 @@ const MOCK_PROS: Professional[] = [
     phone: '+34 654 321 098',
     email: 'david.trans@example.com',
     experience: '10 years',
-    location: 'Benimaclet, Valencia',
+    location: 'Carrer de la Guàrdia Civil, 22, 46020 Valencia',
     coordinates: { lat: 39.4824, lng: -0.3544 },
     services: [
       { name: 'Official Translation', price: 40, description: 'Per page official document translation.' }
@@ -243,7 +249,7 @@ const MOCK_PROS: Professional[] = [
     phone: '+34 677 888 999',
     email: 'sophie.realty@example.com',
     experience: '6 years',
-    location: 'El Carmen, Valencia',
+    location: 'Carrer de Quart, 15, 46001 Valencia',
     coordinates: { lat: 39.4776, lng: -0.3792 },
     services: [
       { name: 'Apartment Hunting', price: 200, description: 'Personalized search for your next home.' },
@@ -263,7 +269,7 @@ const MOCK_PROS: Professional[] = [
     image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200&h=200',
     verified: true,
     bio: 'Professional handyman with a passion for fixing things. I can help with anything from furniture assembly to general home maintenance. Reliable, efficient, and always with a smile.',
-    location: 'Algiros, Valencia',
+    location: 'Carrer del Dr. Manuel Candela, 45, 46021 Valencia',
     coordinates: { lat: 39.4754, lng: -0.3478 },
     services: [
       { name: 'Furniture Assembly', price: 50, description: 'Quick assembly of IKEA or other furniture.' },
@@ -283,7 +289,7 @@ const MOCK_PROS: Professional[] = [
     image: 'https://images.unsplash.com/photo-1567532939604-b6b5b0ad2f01?auto=format&fit=crop&q=80&w=200&h=200',
     verified: true,
     bio: 'Tax consultant with extensive knowledge of the Spanish legal system. I specialize in helping digital nomads and expats optimize their taxes and set up their businesses in Valencia.',
-    location: 'Arrancon, Valencia',
+    location: 'Gran Via de les Germanies, 12, 46006 Valencia',
     coordinates: { lat: 39.4674, lng: -0.3664 },
     services: [
       { name: 'Tax Advice', price: 120, description: 'Expert advice for expats and digital nomads.' },
@@ -1109,6 +1115,13 @@ export default function App() {
               {activeView === 'profile' && (
                 <ProfileView 
                   key="profile" 
+                  scrollToTop={scrollToTop}
+                  onNavigate={navigateTo}
+                />
+              )}
+              {activeView === 'admin' && (
+                <AdminView 
+                  key="admin" 
                   scrollToTop={scrollToTop}
                 />
               )}
@@ -1938,6 +1951,211 @@ function AdDetailModal({ ad, onClose }: { ad: Ad | any, onClose: () => void }) {
 
 // --- Views ---
 
+function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    scrollToTop?.();
+    fetchRecommendations();
+  }, []);
+
+  const fetchRecommendations = async () => {
+    try {
+      const data = await proService.getRecommendations();
+      setRecommendations(data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="max-w-4xl mx-auto px-6 py-12"
+    >
+      <div className="flex items-center justify-between mb-8">
+        <div className="space-y-1 text-left">
+           <h2 className="text-2xl font-black font-display text-brand-navy flex items-center gap-2">
+             <ShieldCheck className="w-8 h-8 text-brand-blue" />
+             Admin Dashboard
+           </h2>
+           <p className="text-slate-500 font-medium tracking-tight">Review member recommendations for new professionals.</p>
+        </div>
+      </div>
+
+      <div className="space-y-4">
+        {loading ? (
+          <div className="flex justify-center py-12">
+            <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : recommendations.length === 0 ? (
+          <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
+            <p className="text-slate-400 font-medium">No recommendations yet.</p>
+          </div>
+        ) : (
+          recommendations.map((rec) => (
+            <div key={rec.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all space-y-4 text-left">
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <h3 className="font-bold text-lg text-slate-900">{rec.pro_name}</h3>
+                  <span className="px-2 py-0.5 bg-slate-100 text-[10px] font-black uppercase text-slate-500 rounded-full tracking-widest">{rec.pro_category}</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-bold uppercase">{rec.created_at ? new Date(rec.created_at).toLocaleDateString() : 'Recently'}</span>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {rec.pro_contact && (
+                  <div className="space-y-1">
+                    <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Contact Info</p>
+                    <p className="font-medium text-slate-700">{rec.pro_contact}</p>
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Suggested by</p>
+                  <p className="font-medium text-brand-blue">{rec.user_email}</p>
+                </div>
+              </div>
+
+              {rec.notes && (
+                <div className="bg-slate-50 p-4 rounded-2xl">
+                  <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider mb-2">Member Notes</p>
+                  <p className="text-slate-600 text-sm leading-relaxed italic">"{rec.notes}"</p>
+                </div>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
+function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+  const [formData, setFormData] = useState({
+    pro_name: '',
+    pro_category: '',
+    pro_contact: '',
+    notes: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [done, setDone] = useState(false);
+
+  if (!isOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await proService.submitRecommendation({
+        ...formData,
+        user_email: "vincentdurroux@gmail.com"
+      });
+      setDone(true);
+      setTimeout(() => {
+        onClose();
+        setDone(false);
+        setFormData({ pro_name: '', pro_category: '', pro_contact: '', notes: '' });
+      }, 2000);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-slate-900/80 backdrop-blur-md" 
+        />
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0, y: 20 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.9, opacity: 0, y: 20 }}
+          className="bg-white w-full max-w-lg rounded-[40px] shadow-2xl relative overflow-hidden text-left"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="p-8 space-y-6">
+            <div className="space-y-1">
+              <h3 className="text-2xl font-black font-display text-brand-navy">Suggest a Professional</h3>
+              <p className="text-xs text-slate-500 font-medium tracking-tight">Help us discover the best local talent.</p>
+            </div>
+            
+            {done ? (
+              <div className="py-12 text-center space-y-4">
+                <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto">
+                  <Check className="w-8 h-8" />
+                </div>
+                <p className="font-bold text-slate-900">Recommendation Sent!</p>
+                <p className="text-sm text-slate-500">Thank you for helping the community grow.</p>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Pro Name / Business</label>
+                  <input 
+                    required
+                    value={formData.pro_name}
+                    onChange={e => setFormData({...formData, pro_name: e.target.value})}
+                    placeholder="e.g. Maria's Legal Services" 
+                    className="w-full h-14 bg-slate-50 border border-slate-100 rounded-2xl px-6 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Category</label>
+                  <input 
+                    required
+                    value={formData.pro_category}
+                    onChange={e => setFormData({...formData, pro_category: e.target.value})}
+                    placeholder="e.g. Attorney, Plumber, Doctor" 
+                    className="w-full h-14 bg-slate-50 border border-slate-100 rounded-2xl px-6 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Contact Info (Optional)</label>
+                  <input 
+                    value={formData.pro_contact}
+                    onChange={e => setFormData({...formData, pro_contact: e.target.value})}
+                    placeholder="Phone or Email" 
+                    className="w-full h-14 bg-slate-50 border border-slate-100 rounded-2xl px-6 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Why do you recommend them?</label>
+                  <textarea 
+                    value={formData.notes}
+                    onChange={e => setFormData({...formData, notes: e.target.value})}
+                    placeholder="Tell us a bit about your experience..." 
+                    className="w-full h-32 bg-slate-50 border border-slate-100 rounded-2xl p-6 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all resize-none placeholder:text-slate-300"
+                  />
+                </div>
+                
+                <button 
+                  disabled={isSubmitting}
+                  className="w-full h-16 bg-brand-navy text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-brand-navy/20 hover:bg-brand-blue transition-all disabled:opacity-50"
+                  type="submit"
+                >
+                  {isSubmitting ? 'Sending...' : 'Submit Recommendation'}
+                </button>
+              </form>
+            )}
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}
+
 function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string }) => void, onAddPro: () => void, ads: Ad[], onSelectAd: (ad: Ad) => void, onSelectPost: (post: any) => void, scrollToTop?: () => void }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [showExpertGuide, setShowExpertGuide] = useState(false);
@@ -1952,7 +2170,7 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 text-center md:text-left mb-12">
         <div className="space-y-1 flex flex-col items-center md:items-start">
-          <h2 className="text-[22px] font-bold font-display text-brand-navy">Hola, Vincent! 👋</h2>
+          <h2 className="text-[22px] font-bold font-display text-brand-navy">Hola, Vincent!</h2>
           <p className="text-slate-500 text-sm">Welcome back to your local community.</p>
         </div>
       </div>
@@ -1962,7 +2180,7 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
         <img 
           src="/people.jpg" 
           alt="Our Community" 
-          className="w-[70%] md:w-1/2 h-auto max-h-[200px] md:max-h-[400px] object-contain block"
+          className="w-[70%] md:w-[35%] h-auto max-h-[160px] md:max-h-[300px] object-contain block"
         />
       </div>
 
@@ -2015,9 +2233,9 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
         </div>
       </motion.div>
 
-      <div className="max-w-xl">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:items-start">
         {/* Highlights of the week carousel */}
-        <div className="space-y-4">
+        <div className="flex flex-col space-y-4">
           <div className="flex justify-between items-center">
             <h3 className="font-bold text-lg font-display text-brand-navy flex items-center gap-2">
               <Sparkles className="w-5 h-5 text-brand-blue" />
@@ -2025,13 +2243,21 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
             </h3>
           </div>
           
-          <div className="relative group">
+          <div className="relative group flex-1 flex flex-col min-h-[250px]">
             <HighlightCarousel onNavigate={onNavigate} />
           </div>
         </div>
 
-        {/* Expert Guides & Partners Section */}
-        <ExpertGuidesPartners onReadFullGuide={() => setShowExpertGuide(true)} />
+        <div className="flex flex-col space-y-4">
+          {/* Expert Guides & Partners Section */}
+          <div className="flex justify-between items-center">
+            <h3 className="font-bold text-lg font-display text-brand-navy flex items-center gap-2">
+              <Globe className="w-5 h-5 text-brand-yellow" />
+              Partner Expert Guides
+            </h3>
+          </div>
+          <ExpertGuidesPartners onReadFullGuide={() => setShowExpertGuide(true)} />
+        </div>
 
         {/* Expert Guide Modal */}
         <ExpertGuideModal 
@@ -2044,11 +2270,19 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
 }
 
 function ExpertGuideModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
   if (!isOpen) return null;
+
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    setIsScrolled(scrollTop > 60);
+  };
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 lg:p-8">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-6 lg:p-8">
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -2061,34 +2295,66 @@ function ExpertGuideModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          className="bg-white w-full max-w-4xl h-[90vh] md:h-auto md:max-h-[85vh] rounded-[32px] md:rounded-[40px] shadow-2xl relative flex flex-col overflow-hidden"
+          className="bg-white w-full max-w-4xl h-full md:h-auto md:max-h-[85vh] rounded-none md:rounded-[40px] shadow-2xl relative flex flex-col overflow-hidden"
           onClick={e => e.stopPropagation()}
         >
-          {/* Header Image */}
-          <div className="h-48 md:h-64 relative flex-shrink-0">
-            <img src="/valencia.jpg" alt="Valencia" className="w-full h-full object-cover" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+          {/* Header Image Section - Shrinks on scroll */}
+          <motion.div 
+            animate={{ 
+              height: isScrolled ? '80px' : '320px'
+            }}
+            className="relative flex-shrink-0 overflow-hidden bg-brand-navy group"
+          >
+            <motion.img 
+              animate={{ opacity: isScrolled ? 0.3 : 1, scale: isScrolled ? 1.1 : 1 }}
+              src="/valencia.jpg" 
+              alt="Valencia" 
+              className="w-full h-full object-cover absolute inset-0" 
+            />
+            <div className={cn(
+              "absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent transition-opacity duration-300",
+              isScrolled ? "opacity-0" : "opacity-100"
+            )} />
             
             <button 
               onClick={onClose}
-              className="absolute top-6 right-6 p-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-all shadow-lg active:scale-95 z-20"
+              className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-all shadow-lg active:scale-95 z-20"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="absolute bottom-6 left-8 right-8">
+            <motion.div 
+              animate={{ 
+                opacity: isScrolled ? 0 : 1,
+                y: isScrolled ? 20 : 0
+              }}
+              className="absolute bottom-8 left-8 right-8 pointer-events-none"
+            >
               <div className="flex items-center gap-2 mb-3">
-                <span className="px-3 py-1 bg-brand-yellow text-white text-[10px] font-black uppercase tracking-widest rounded-full">Exclusive Guide</span>
+                <span className="px-3 py-1 bg-brand-yellow text-white text-[10px] font-black uppercase tracking-widest rounded-full shadow-lg shadow-brand-yellow/20">Exclusive Guide</span>
                 <span className="text-white/60 text-xs font-bold">• 8 min read</span>
               </div>
-              <h2 className="text-2xl md:text-4xl font-black text-white font-display leading-tight">
+              <h2 className="text-2xl md:text-4xl font-black text-white font-display leading-tight drop-shadow-2xl">
                 Choosing the perfect neighborhood in Valencia
               </h2>
-            </div>
-          </div>
+            </motion.div>
+
+            {/* Small Title for Scrolled State */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: isScrolled ? 1 : 0 }}
+              className="absolute inset-0 flex items-center justify-start px-8 pt-2 pointer-events-none"
+            >
+              <p className="text-white font-bold text-sm tracking-tight truncate max-w-[70%]">Choosing the perfect neighborhood in Valencia</p>
+            </motion.div>
+          </motion.div>
 
           {/* Scrollable Content */}
-          <div className="flex-grow overflow-y-auto p-8 md:p-12">
+          <div 
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="flex-grow overflow-y-auto p-8 md:p-12 scroll-smooth"
+          >
             <div className="max-w-2xl mx-auto space-y-10">
               {/* Partner Intro */}
               <div className="flex items-center gap-4 py-6 border-b border-slate-100 mb-8">
@@ -2197,7 +2463,6 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
     avatar: "https://i.pravatar.cc/150?u=marina",
     excerpt: "From the bohemian streets of Ruzafa to the family-friendly avenues of Algiros, every district tells a different story. Discover which one matches your lifestyle and investment goals.",
     brandImage: "/valencia.jpg",
-    ref: "EV-VAL-2024",
     contact: {
       phone: "+34 963 51 02 00",
       email: "valencia@engelvoelkers.com"
@@ -2205,16 +2470,9 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
   };
 
   return (
-    <div className="space-y-4 pt-4">
-      <div className="flex justify-between items-center">
-        <h3 className="font-bold text-lg font-display text-brand-navy flex items-center gap-2">
-          <Globe className="w-5 h-5 text-brand-yellow" />
-          Partner Expert Guides
-        </h3>
-      </div>
-      
-      <div className="bg-white border border-slate-100 rounded-[32px] overflow-hidden shadow-sm hover:shadow-md transition-all group">
-        <div className="flex flex-col md:flex-row">
+    <div className="flex-1 flex flex-col pt-4">
+      <div className="bg-white border border-slate-100 rounded-[32px] overflow-hidden shadow-sm hover:shadow-md transition-all group flex-1 flex flex-col">
+        <div className="flex flex-col md:flex-row flex-1">
           {/* Visual Side */}
           <div className="md:w-1/3 h-48 md:h-auto relative overflow-hidden">
             <img src={featuredGuide.brandImage} alt="Valencia neighborhoods" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -2261,7 +2519,6 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
               </div>
               
               <div className="flex items-center gap-3">
-                <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest hidden md:block">{featuredGuide.ref}</span>
                 <button 
                   onClick={onReadFullGuide}
                   className="bg-brand-navy text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-brand-blue transition-all shadow-lg active:scale-95"
@@ -2279,6 +2536,8 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
 
 function HighlightCarousel({ onNavigate }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string }) => void }) {
   const [currentIndex, setCurrentIndex] = useState(0);
+  const { professionals: allPros } = useProfessionals(MOCK_PROS);
+  const featuredPro = allPros[1] || MOCK_PROS[1];
   const totalSlides = 3;
 
   const nextSlide = () => setCurrentIndex((prev) => (prev + 1) % totalSlides);
@@ -2297,8 +2556,8 @@ function HighlightCarousel({ onNavigate }: { onNavigate: (view: View, params?: {
     },
     {
       type: 'pro',
-      pro: MOCK_PROS[1],
-      action: () => onNavigate('explore', { proId: MOCK_PROS[1].id })
+      pro: featuredPro,
+      action: () => onNavigate('explore', { proId: featuredPro.id })
     },
     {
       type: 'tip',
@@ -2312,9 +2571,9 @@ function HighlightCarousel({ onNavigate }: { onNavigate: (view: View, params?: {
   ];
 
   return (
-    <div className="relative overflow-hidden rounded-[32px] no-swipe">
+    <div className="relative overflow-hidden rounded-[32px] no-swipe flex-1 flex flex-col">
       <motion.div 
-        className="flex"
+        className="flex h-full"
         drag="x"
         dragConstraints={{ left: 0, right: 0 }}
         dragElastic={0.2}
@@ -2330,10 +2589,10 @@ function HighlightCarousel({ onNavigate }: { onNavigate: (view: View, params?: {
         transition={{ type: "spring", stiffness: 300, damping: 30 }}
       >
         {slides.map((slide, idx) => (
-          <div key={idx} className="min-w-full px-1">
+          <div key={idx} className="min-w-full px-1 h-full">
             {slide.type === 'event' && (
               <div 
-                className="card bg-white overflow-hidden cursor-pointer h-[220px] border border-slate-100/50 shadow-sm flex flex-col"
+                className="card bg-white overflow-hidden cursor-pointer h-full border border-slate-100/50 shadow-sm flex flex-col"
                 onClick={slide.action}
               >
                 <div className="h-32 overflow-hidden relative">
@@ -2357,7 +2616,7 @@ function HighlightCarousel({ onNavigate }: { onNavigate: (view: View, params?: {
 
             {slide.type === 'pro' && slide.pro && (
               <div 
-                className="card bg-gradient-to-br from-brand-blue/5 to-transparent overflow-hidden cursor-pointer h-[220px] border border-brand-blue/10 shadow-sm relative flex flex-col justify-center items-center text-center p-5"
+                className="card bg-gradient-to-br from-brand-blue/5 to-transparent overflow-hidden cursor-pointer h-full border border-brand-blue/10 shadow-sm relative flex flex-col justify-center items-center text-center p-5"
                 onClick={slide.action}
               >
                 <div className="absolute top-3 right-3 bg-brand-blue text-white p-1.5 rounded-full shadow-lg">
@@ -2376,7 +2635,7 @@ function HighlightCarousel({ onNavigate }: { onNavigate: (view: View, params?: {
 
             {slide.type === 'tip' && (
               <div 
-                className="card bg-white overflow-hidden cursor-pointer h-[220px] border border-slate-100/50 shadow-sm flex flex-col"
+                className="card bg-white overflow-hidden cursor-pointer h-full border border-slate-100/50 shadow-sm flex flex-col"
                 onClick={slide.action}
               >
                 <div className="h-24 bg-brand-blue/10 flex items-center justify-center relative overflow-hidden">
@@ -2513,15 +2772,21 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
     }, 400);
     return () => clearTimeout(timer);
   }, [search]);
-  const [selectedGroup, setSelectedGroup] = useState('All');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
   useEffect(() => {
     scrollToTop?.();
-  }, [selectedGroup, selectedCategory]);
+  }, [selectedCategory]);
 
   const [selectedLanguage, setSelectedLanguage] = useState('All');
+  const [minRating, setMinRating] = useState(0);
   const [selectedPro, setSelectedPro] = useState<Professional | null>(null);
+
+  const { professionals: allPros } = useProfessionals(MOCK_PROS);
+
+  const allProfessions = useMemo(() => {
+    return Array.from(new Set(allPros.map(p => p.category))).sort();
+  }, [allPros]);
 
   const scrollToPro = (pro: Professional) => {
     const element = document.getElementById(`pro-card-${pro.id}`);
@@ -2537,12 +2802,12 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
 
   useEffect(() => {
     if (initialProId) {
-      const pro = MOCK_PROS.find(p => p.id === initialProId);
+      const pro = allPros.find(p => p.id === initialProId);
       if (pro) {
         setSelectedPro(pro);
       }
     }
-  }, [initialProId]);
+  }, [initialProId, allPros]);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [maxDistance, setMaxDistance] = useState<number | 'All'>('All');
 
@@ -2591,36 +2856,16 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
     return R * c;
   };
 
-  const categoryGroups: Record<string, { icon: any, categories: string[] }> = {
-    'Home Services': { 
-      icon: <Home className="w-4 h-4" />, 
-      categories: ['Plumber', 'Handyman', 'Electrician', 'Carpenter', 'Locksmith'] 
-    },
-    'Legal & Admin': { 
-      icon: <FileText className="w-4 h-4" />, 
-      categories: ['Lawyer', 'Accountant', 'Translator', 'Real Estate', 'Insurance'] 
-    },
-    'Health & Lifestyle': { 
-      icon: <Heart className="w-4 h-4" />, 
-      categories: ['Dentist', 'Yoga', 'Personal Trainer', 'Doctor', 'Therapist'] 
-    }
-  };
-
-  const allCategories = Object.values(categoryGroups).flatMap(g => g.categories);
-  const currentCategories = selectedGroup === 'All' 
-    ? [] 
-    : categoryGroups[selectedGroup]?.categories || [];
-
   const languages = ['All', 'Spanish', 'English', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian', 'Arabic', 'Chinese', 'Japanese'];
   const distances = ['All', 1, 2, 5, 10, 25, 50, 100];
 
-  const hasActiveFilter = deferredSearch.trim() !== '' || selectedGroup !== 'All' || selectedCategory !== 'All' || selectedLanguage !== 'All' || maxDistance !== 'All';
+  const hasActiveFilter = deferredSearch.trim() !== '' || selectedCategory !== 'All' || selectedLanguage !== 'All' || maxDistance !== 'All' || minRating > 0;
 
   const filteredPros = hasActiveFilter 
-    ? MOCK_PROS.filter(pro => {
-        const matchesGroup = selectedGroup === 'All' || categoryGroups[selectedGroup].categories.includes(pro.category);
+    ? allPros.filter(pro => {
         const matchesCategory = selectedCategory === 'All' || pro.category === selectedCategory;
         const matchesLanguage = selectedLanguage === 'All' || pro.languages.includes(selectedLanguage);
+        const matchesRating = pro.rating >= minRating;
         const matchesSearch = pro.name.toLowerCase().includes(deferredSearch.toLowerCase()) || 
                             pro.category.toLowerCase().includes(deferredSearch.toLowerCase()) ||
                             pro.bio.toLowerCase().includes(deferredSearch.toLowerCase());
@@ -2631,9 +2876,9 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
           matchesDistance = dist <= (maxDistance as number);
         }
 
-        return matchesGroup && matchesCategory && matchesLanguage && matchesSearch && matchesDistance;
+        return matchesCategory && matchesLanguage && matchesSearch && matchesDistance && matchesRating;
       })
-    : MOCK_PROS.slice(0, 4);
+    : allPros.slice(0, 4);
 
   return (
     <motion.div 
@@ -2742,163 +2987,102 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
             </div>
           </div>
           
-            {/* Category Selection */}
-        <div className="space-y-6">
-          <AnimatePresence mode="wait">
-            {selectedGroup === 'All' ? (
-              <motion.div 
-                key="main-categories"
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 20 }}
-                className="flex flex-wrap gap-2"
-              >
-                <button
-                  onClick={() => { setSelectedGroup('All'); setSelectedCategory('All'); }}
-                  className={cn(
-                    "px-5 py-2.5 rounded-xl text-xs font-medium uppercase tracking-widest transition-all border flex items-center gap-2 active:scale-95 bg-brand-navy text-white border-brand-navy shadow-lg shadow-brand-navy/10"
-                  )}
+          {/* Filters Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 pt-4">
+            {/* Profession Dropdown */}
+            <div className="space-y-4">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Filter className="w-3.5 h-3.5 text-brand-blue" /> Filter by Profession
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedCategory}
+                  onChange={(e) => setSelectedCategory(e.target.value)}
+                  className="w-full pl-6 pr-12 py-4 bg-white rounded-2xl border border-slate-100 focus:ring-4 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none shadow-sm hover:shadow-md transition-all text-slate-700 font-bold text-sm appearance-none cursor-pointer"
                 >
-                  All Experts
-                </button>
-                {Object.entries(categoryGroups).map(([name, data]) => {
-                  const categoryColors: Record<string, string> = {
-                    'Home Services': 'text-orange-500 border-orange-100 hover:border-orange-200',
-                    'Legal & Admin': 'text-blue-500 border-blue-100 hover:border-blue-200',
-                    'Health & Lifestyle': 'text-emerald-500 border-emerald-100 hover:border-emerald-200'
-                  };
-                  return (
-                    <button
-                      key={name}
-                      onClick={() => { setSelectedGroup(name); setSelectedCategory('All'); }}
-                      className={cn(
-                        "px-5 py-2.5 rounded-xl text-xs font-medium uppercase tracking-widest transition-all border flex items-center gap-2 active:scale-95 bg-white",
-                        categoryColors[name] || 'text-slate-400 border-slate-100 hover:border-slate-200'
-                      )}
-                    >
-                      {data.icon}
-                      {name}
-                    </button>
-                  );
-                })}
-              </motion.div>
-            ) : (
-              <motion.div 
-                key="sub-categories"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-4"
-              >
-                <div className="flex items-center gap-4">
-                  <button
-                    onClick={() => { setSelectedGroup('All'); setSelectedCategory('All'); }}
-                    className="p-2 rounded-full hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-900"
-                  >
-                    <ChevronLeft className="w-5 h-5" />
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xl">{categoryGroups[selectedGroup as keyof typeof categoryGroups]?.icon}</span>
-                    <h3 className="font-bold text-brand-navy uppercase tracking-widest text-sm">{selectedGroup}</h3>
-                  </div>
+                  <option value="All">All Professions</option>
+                  {allProfessions.map(prof => (
+                    <option key={prof} value={prof}>{prof}</option>
+                  ))}
+                </select>
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
                 </div>
-                
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setSelectedCategory('All')}
-                    className={cn(
-                      "px-4 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all border",
-                      selectedCategory === 'All' 
-                        ? "bg-slate-900 text-white border-slate-900 shadow-md" 
-                        : "bg-white text-slate-400 border-slate-100 hover:border-slate-200"
-                    )}
-                  >
-                    All {selectedGroup}
-                  </button>
-                  {currentCategories.map(cat => (
+              </div>
+            </div>
+
+            {/* Language Dropdown */}
+            <div className="space-y-4">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Globe className="w-3.5 h-3.5 text-brand-blue" /> Preferred Language
+              </label>
+              <div className="relative">
+                <select
+                  value={selectedLanguage}
+                  onChange={(e) => setSelectedLanguage(e.target.value)}
+                  className="w-full pl-6 pr-12 py-4 bg-white rounded-2xl border border-slate-100 focus:ring-4 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none shadow-sm hover:shadow-md transition-all text-slate-700 font-bold text-sm appearance-none cursor-pointer"
+                >
+                  {languages.map(lang => (
+                    <option key={lang} value={lang}>{lang === 'All' ? 'All Languages' : lang}</option>
+                  ))}
+                </select>
+                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <ChevronDown className="w-4 h-4 text-slate-400" />
+                </div>
+              </div>
+            </div>
+
+            {/* Distance Filter Slider */}
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                  <MapPin className="w-3.5 h-3.5 text-rose-500" /> Max Distance ({maxDistance === 'All' ? 'Everywhere' : `${maxDistance} km`})
+                </label>
+                {maxDistance !== 'All' && (
+                  <button onClick={() => setMaxDistance('All')} className="text-[10px] font-bold text-brand-blue uppercase hover:underline">Reset</button>
+                )}
+              </div>
+              <div className="px-4 py-6 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
+                <span className="text-[10px] font-bold text-slate-300">1km</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="50"
+                  step="1"
+                  value={maxDistance === 'All' ? 50 : maxDistance}
+                  onChange={(e) => setMaxDistance(parseInt(e.target.value))}
+                  className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                />
+                <span className="text-[10px] font-bold text-slate-300">50km+</span>
+              </div>
+            </div>
+
+            {/* Rating Filter stars */}
+            <div className="space-y-4">
+              <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                <Star className="w-3.5 h-3.5 text-brand-yellow" /> Minimum Rating
+              </label>
+              <div className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm h-[66px]">
+                <div className="flex items-center gap-1">
+                  {[1, 2, 3, 4, 5].map((s) => (
                     <button
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                      className={cn(
-                        "px-4 py-2 rounded-xl text-[10px] font-semibold uppercase tracking-widest transition-all border",
-                        selectedCategory === cat 
-                          ? "bg-brand-blue text-white border-brand-blue shadow-md" 
-                          : "bg-white text-slate-400 border-slate-100 hover:border-slate-200"
-                      )}
+                      key={s}
+                      onClick={() => setMinRating(minRating === s ? 0 : s)}
+                      className="p-0.5 transition-transform hover:scale-110 active:scale-95"
                     >
-                      {cat}
+                      <Star className={cn("w-6 h-6 transition-colors", s <= minRating ? "text-brand-yellow fill-brand-yellow" : "text-slate-200")} />
                     </button>
                   ))}
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Filters Row */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-50">
-          {/* Distance */}
-          <div className="space-y-3 min-w-0">
-             <span className="text-[10px] font-bold text-rose-500 uppercase tracking-[0.2em] flex items-center gap-2">
-               <MapPin className="w-3.5 h-3.5" /> Area Search (Radius)
-             </span>
-             <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 mask-fade-right">
-               {distances.map(d => (
-                 <button
-                   key={d.toString()}
-                   onClick={() => setMaxDistance(d as any)}
-                   className={cn(
-                     "px-5 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap shrink-0 border",
-                     maxDistance === d 
-                       ? "bg-rose-50 text-rose-600 border-rose-100 shadow-sm shadow-rose-500/5 font-bold" 
-                       : "bg-white text-slate-400 border-slate-100 hover:border-slate-200"
-                   )}
-                 >
-                   {d === 'All' ? 'Everywhere' : `${d} km`}
-                 </button>
-               ))}
-             </div>
+                <span className="ml-auto text-xs font-bold text-slate-400">
+                  {minRating > 0 ? `${minRating}.0+` : 'Any rating'}
+                </span>
+              </div>
+            </div>
           </div>
-
-          {/* Languages */}
-          <div className="space-y-3 min-w-0">
-             <span className="text-[10px] font-bold text-brand-blue uppercase tracking-[0.2em] flex items-center gap-2">
-               <Globe className="w-3.5 h-3.5" /> Preferred Language
-             </span>
-             <div className="flex gap-2 overflow-x-auto no-scrollbar py-1 mask-fade-right">
-               {languages.map(lang => (
-                 <button
-                   key={lang}
-                   onClick={() => setSelectedLanguage(lang)}
-                   className={cn(
-                     "px-5 py-2.5 rounded-xl text-xs font-medium transition-all whitespace-nowrap shrink-0 border",
-                     selectedLanguage === lang 
-                       ? "bg-brand-blue/5 text-brand-blue border-brand-blue/20 shadow-sm shadow-brand-blue/5 font-bold" 
-                       : "bg-white text-slate-400 border-slate-100 hover:border-slate-200"
-                   )}
-                 >
-                   {lang}
-                 </button>
-               ))}
-             </div>
-          </div>
-        </div>
       </div>
 
-      {/* Results Section */}
       <div className="pt-8">
-        <div className="flex items-end justify-between mb-10 px-1">
-          <div className="space-y-1">
-            <h3 className="text-2xl md:text-3xl font-bold font-display text-slate-900 flex items-center gap-4">
-              {hasActiveFilter ? 'Search Results' : 'Recommended for you'}
-              <div className="flex items-center gap-1.5 px-3 py-1 bg-slate-100 rounded-full">
-                <span className="text-[10px] font-black text-slate-500 uppercase">{filteredPros.length}</span>
-              </div>
-            </h3>
-            <p className="text-slate-400 text-sm font-medium">Top rated experts matching your preferences.</p>
-          </div>
-        </div>
-
         <div className="space-y-12">
           {/* Map View always on top */}
           <motion.div 
@@ -2982,7 +3166,7 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
                   <p className="text-slate-400 max-w-md mx-auto font-medium">Try broadening your search or choosing a different community category.</p>
                 </div>
                 <button 
-                  onClick={() => { setSearch(''); setSelectedGroup('All'); setSelectedCategory('All'); setSelectedLanguage('All'); }}
+                  onClick={() => { setSearch(''); setSelectedCategory('All'); setSelectedLanguage('All'); setMaxDistance('All'); setMinRating(0); }}
                   className="mt-4 px-8 py-4 bg-brand-blue text-white rounded-2xl font-bold text-sm shadow-xl shadow-brand-blue/20 hover:scale-105 transition-all active:scale-95"
                 >
                   Clear all filters
@@ -3192,10 +3376,53 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
             <div className="md:col-span-2 space-y-10">
+              {/* Direct Contact Bar - Vertical List */}
+              <div className="bg-slate-50/30 rounded-2xl p-4 space-y-3 max-w-sm">
+                {pro.phone && (
+                  <div className="flex items-center gap-3">
+                    <Phone className="w-3.5 h-3.5 text-cyan-500/70" />
+                    <a href={`tel:${pro.phone}`} className="text-sm text-slate-500 hover:text-brand-blue transition-colors">{pro.phone}</a>
+                  </div>
+                )}
+                {pro.email && (
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-3.5 h-3.5 text-brand-blue/70" />
+                    <a href={`mailto:${pro.email}`} className="text-sm text-slate-500 hover:text-brand-blue transition-colors break-all">{pro.email}</a>
+                  </div>
+                )}
+                {pro.website && (
+                  <div className="flex items-center gap-3">
+                    <Link className="w-3.5 h-3.5 text-slate-400/70" />
+                    <a 
+                      href={pro.website.startsWith('http') ? pro.website : `https://${pro.website}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-sm text-slate-500 hover:text-brand-blue transition-colors"
+                    >
+                      {pro.website.replace(/^https?:\/\/(www\.)?/, '')}
+                    </a>
+                  </div>
+                )}
+                {pro.location && (
+                  <div className="flex items-center gap-3">
+                    <MapPin className="w-3.5 h-3.5 text-rose-500/70" />
+                    <span className="text-sm text-slate-500">{pro.location}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-3">
+                  <Globe className="w-3.5 h-3.5 text-slate-400/70" />
+                  <div className="flex gap-2">
+                    {pro.languages.map(lang => (
+                      <span key={lang} className="text-sm text-slate-500">{lang}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <section className="space-y-4">
                 <div className="flex items-center gap-3">
                   <div className="w-2 h-2 rounded-full bg-brand-blue" />
-                  <h4 className="text-lg font-semibold text-slate-900 font-display uppercase tracking-wider">Expert Bio</h4>
+                  <h4 className="text-lg font-semibold text-slate-900 font-display uppercase tracking-wider">About</h4>
                 </div>
                 <p className="text-slate-600 leading-relaxed text-base font-medium">
                   {pro.bio}
@@ -3222,17 +3449,19 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
                         <div className="flex gap-3 items-center">
                           <img src={t.avatar} alt="" className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
                           <div>
-                            <button 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onClose();
-                                onNavigate('messages');
-                              }}
-                              className="font-bold text-slate-900 hover:text-brand-blue flex items-center gap-1.5 transition-colors"
-                            >
-                              {t.author}
-                              <MessageCircle className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onClose();
+                                  onNavigate('messages');
+                                }}
+                                className="font-bold text-slate-900 hover:text-brand-blue flex items-center gap-1.5 transition-colors group/chat"
+                              >
+                                {t.author}
+                                <MessageSquare className="w-3.5 h-3.5 text-brand-blue opacity-70 group-hover/chat:opacity-100 transition-opacity" />
+                              </button>
+                            </div>
                             <div className="flex items-center gap-0.5">
                               {[...Array(5)].map((_, idx) => (
                                 <Star key={idx} className={cn("w-2.5 h-2.5", idx < t.rating ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
@@ -3252,50 +3481,6 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
             </div>
 
             <div className="space-y-6">
-              <div className="p-8 bg-slate-900 rounded-[32px] text-white space-y-8 shadow-2xl relative overflow-hidden group">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-brand-blue/20 blur-3xl -mr-16 -mt-16 group-hover:bg-brand-blue/30 transition-colors" />
-                
-                <h4 className="font-semibold text-sm uppercase tracking-[0.2em] text-slate-400 relative z-10">Direct Contact</h4>
-                
-                <div className="space-y-6 relative z-10">
-                  {pro.phone && (
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-medium text-cyan-400 uppercase tracking-widest">Phone</p>
-                      <a href={`tel:${pro.phone}`} className="font-bold text-lg hover:text-brand-blue cursor-pointer transition-colors break-all block">{pro.phone}</a>
-                    </div>
-                  )}
-                  {pro.email && (
-                    <div className="space-y-1">
-                      <p className="text-[10px] font-medium text-indigo-400 uppercase tracking-widest">Email</p>
-                      <a href={`mailto:${pro.email}`} className="font-bold text-sm hover:text-brand-blue cursor-pointer transition-colors break-all block">{pro.email}</a>
-                    </div>
-                  )}
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-medium text-brand-blue uppercase tracking-widest">Languages</p>
-                    <div className="flex flex-wrap gap-2">
-                      {pro.languages.map(lang => (
-                        <span key={lang} className="px-2.5 py-1 bg-white/10 rounded-lg text-[10px] font-medium border border-white/10 backdrop-blur-sm">
-                          {lang}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-
-              </div>
-
-              {pro.location && (
-                <div className="p-6 bg-slate-50 rounded-[32px] border border-slate-100 flex items-center gap-4">
-                  <div className="w-12 h-12 bg-rose-50 rounded-2xl flex items-center justify-center">
-                    <MapPin className="w-6 h-6 text-rose-500" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-medium text-rose-500 uppercase tracking-widest">Location</p>
-                    <p className="font-bold text-slate-900">{pro.location}</p>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -3706,14 +3891,19 @@ function MarketplaceView({ onAddAd, ads, onSelectAd, scrollToTop }: { onAddAd: (
   );
 }
 
-function ProfileView({ scrollToTop }: { scrollToTop?: () => void }) {
+function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, onNavigate?: (view: View) => void }) {
   const [activeSubPage, setActiveSubPage] = useState<string | null>(null);
+  const [showSuggestModal, setShowSuggestModal] = useState(false);
+  const userEmail = "vincentdurroux@gmail.com";
+  const isAdmin = proService.isAdmin(userEmail);
 
   useEffect(() => {
     scrollToTop?.();
   }, [activeSubPage]);
 
   const menuItems = [
+    ...(isAdmin ? [{ label: 'Admin Dashboard', icon: ShieldCheck, color: 'text-brand-blue', action: () => onNavigate?.('admin') }] : []),
+    { label: 'Suggest a Pro', icon: Star, color: 'text-brand-yellow', action: () => setShowSuggestModal(true) },
     { label: 'Account Security', icon: Shield },
     { label: 'Change Password', icon: Lock },
     { label: 'Payment', icon: CreditCard },
@@ -3736,33 +3926,42 @@ function ProfileView({ scrollToTop }: { scrollToTop?: () => void }) {
         <div className="w-24 h-24 rounded-full bg-slate-200 border-4 border-white shadow-sm overflow-hidden mb-4">
           <img src="/photo-vincent.jpg" alt="Profile" className="w-full h-full object-cover" />
         </div>
-        <h2 className="text-xl font-bold font-display text-brand-navy">Vincent D.</h2>
+        <div className="text-center">
+          <h2 className="text-xl font-bold font-display text-brand-navy">Vincent D.</h2>
+          {isAdmin && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[10px] font-black uppercase tracking-widest rounded-full mt-1">
+              <ShieldCheck className="w-3 h-3" /> Admin
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Menu List */}
       <div className="bg-white border-y border-slate-100">
         <div className="px-6 py-4 flex justify-between items-center border-b border-slate-50">
           <span className="font-bold text-slate-900">Account</span>
-          <span className="text-sm text-slate-500">vincentdurroux@gmail.com</span>
+          <span className="text-sm text-slate-500">{userEmail}</span>
         </div>
 
         {menuItems.map((item, index) => (
           <button 
             key={index}
-            onClick={() => setActiveSubPage(item.label)}
+            onClick={() => item.action ? item.action() : setActiveSubPage(item.label)}
             className={cn(
               "w-full px-6 py-4 flex justify-between items-center active:bg-slate-50 hover:bg-slate-50/50 transition-all group",
               index !== menuItems.length - 1 && "border-b border-slate-50"
             )}
           >
             <div className="flex items-center gap-3 group-hover:translate-x-1 transition-transform">
-              <item.icon className="w-5 h-5 text-slate-400 group-hover:text-brand-blue transition-colors" />
-              <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors">{item.label}</span>
+              <item.icon className={cn("w-5 h-5 text-slate-400 group-hover:text-brand-blue transition-colors", item.color)} />
+              <span className="text-sm font-medium text-slate-700 group-hover:text-slate-900 transition-colors uppercase tracking-wider">{item.label}</span>
             </div>
             <ChevronRight className="w-5 h-5 text-slate-300 group-hover:text-brand-blue transition-colors" />
           </button>
         ))}
       </div>
+
+      <SuggestProModal isOpen={showSuggestModal} onClose={() => setShowSuggestModal(false)} />
 
       {/* Logout Button */}
       <div className="px-6 mt-8">
@@ -4029,7 +4228,7 @@ function ProfileSubPage({ title, onBack, children }: { title: string, onBack: ()
 function SplashScreen() {
   return (
     <motion.div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden"
+      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-white"
     >
       {/* Background Panels for the "Door" effect */}
       <motion.div 
@@ -4083,7 +4282,7 @@ function SplashScreen() {
           className="flex flex-col items-center"
         >
           <p className="text-xs md:text-sm font-medium text-slate-500 whitespace-nowrap px-4 text-center">
-            Your circle. Your people. <span className="text-brand-blue">Your recommendations.</span>
+            Real people. Trusted <span className="text-brand-blue">recommendations</span>
           </p>
           
           {/* Loading Progress Bar */}
@@ -4102,14 +4301,7 @@ function SplashScreen() {
         </motion.div>
       </motion.div>
 
-      {/* Decorative background circle */}
-      <motion.div
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 0.03 }}
-        exit={{ opacity: 0, transition: { duration: 0.3 } }}
-        transition={{ duration: 1, delay: 0.2 }}
-        className="absolute inset-0 bg-brand-blue rounded-full blur-[100px] pointer-events-none"
-      />
+
     </motion.div>
   );
 }
