@@ -2038,17 +2038,34 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
 function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) {
   const [formData, setFormData] = useState({
     pro_name: '',
+    company_name: '',
     pro_category: '',
-    pro_contact: '',
+    pro_email: '',
+    pro_phone: '',
     notes: ''
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+
+    // Validation: Name or Company required
+    if (!formData.pro_name && !formData.company_name) {
+      setError('Please provide at least a Full Name or a Company Name.');
+      return;
+    }
+
+    // Validation: Email or Phone required
+    if (!formData.pro_email && !formData.pro_phone) {
+      setError('Please provide at least an Email or a Phone number.');
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       await proService.submitRecommendation({
@@ -2059,10 +2076,18 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
       setTimeout(() => {
         onClose();
         setDone(false);
-        setFormData({ pro_name: '', pro_category: '', pro_contact: '', notes: '' });
+        setFormData({ 
+          pro_name: '', 
+          company_name: '',
+          pro_category: '', 
+          pro_email: '', 
+          pro_phone: '',
+          notes: '' 
+        });
       }, 2000);
     } catch (err) {
       console.error(err);
+      setError('Failed to send recommendation. Please check your connection.');
     } finally {
       setIsSubmitting(false);
     }
@@ -2087,8 +2112,8 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
         >
           <div className="p-8 space-y-6">
             <div className="space-y-1">
-              <h3 className="text-2xl font-black font-display text-brand-navy">Suggest a Professional</h3>
-              <p className="text-xs text-slate-500 font-medium tracking-tight">Help us discover the best local talent.</p>
+              <h3 className="text-2xl font-black font-display text-brand-navy">Recommend a Professional</h3>
+              <p className="text-xs text-slate-500 font-medium tracking-tight">Help us discover the best local talent for our community.</p>
             </div>
             
             {done ? (
@@ -2100,49 +2125,82 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                 <p className="text-sm text-slate-500">Thank you for helping the community grow.</p>
               </div>
             ) : (
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Pro Name / Business</label>
-                  <input 
-                    required
-                    value={formData.pro_name}
-                    onChange={e => setFormData({...formData, pro_name: e.target.value})}
-                    placeholder="e.g. Maria's Legal Services" 
-                    className="w-full h-14 bg-slate-50 border border-slate-100 rounded-2xl px-6 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300"
-                  />
+              <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto max-h-[60vh] pr-2 custom-scrollbar">
+                {error && (
+                  <div className="p-3 bg-red-50 text-red-500 text-xs font-bold rounded-xl border border-red-100">
+                    {error}
+                  </div>
+                )}
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Full Name</label>
+                    <input 
+                      value={formData.pro_name}
+                      onChange={e => setFormData({...formData, pro_name: e.target.value})}
+                      placeholder="e.g. Maria Gonzalez" 
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Company Name</label>
+                    <input 
+                      value={formData.company_name}
+                      onChange={e => setFormData({...formData, company_name: e.target.value})}
+                      placeholder="e.g. Legal Experts SL" 
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300 text-sm"
+                    />
+                  </div>
                 </div>
+
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Category</label>
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Profession (Métier)</label>
                   <input 
                     required
                     value={formData.pro_category}
                     onChange={e => setFormData({...formData, pro_category: e.target.value})}
                     placeholder="e.g. Attorney, Plumber, Doctor" 
-                    className="w-full h-14 bg-slate-50 border border-slate-100 rounded-2xl px-6 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300"
+                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300 text-sm"
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Contact Info (Optional)</label>
-                  <input 
-                    value={formData.pro_contact}
-                    onChange={e => setFormData({...formData, pro_contact: e.target.value})}
-                    placeholder="Phone or Email" 
-                    className="w-full h-14 bg-slate-50 border border-slate-100 rounded-2xl px-6 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300"
-                  />
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Email</label>
+                    <input 
+                      type="email"
+                      value={formData.pro_email}
+                      onChange={e => setFormData({...formData, pro_email: e.target.value})}
+                      placeholder="email@example.com" 
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300 text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Phone</label>
+                    <input 
+                      type="tel"
+                      value={formData.pro_phone}
+                      onChange={e => setFormData({...formData, pro_phone: e.target.value})}
+                      placeholder="+34 ..." 
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300 text-sm"
+                    />
+                  </div>
                 </div>
+
                 <div className="space-y-1.5">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Why do you recommend them?</label>
                   <textarea 
+                    required
                     value={formData.notes}
                     onChange={e => setFormData({...formData, notes: e.target.value})}
-                    placeholder="Tell us a bit about your experience..." 
-                    className="w-full h-32 bg-slate-50 border border-slate-100 rounded-2xl p-6 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all resize-none placeholder:text-slate-300"
+                    placeholder="Tell us why this professional is great..." 
+                    className="w-full h-24 bg-slate-50 border border-slate-100 rounded-2xl p-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all resize-none placeholder:text-slate-300 text-sm"
                   />
                 </div>
                 
                 <button 
                   disabled={isSubmitting}
-                  className="w-full h-16 bg-brand-navy text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-brand-navy/20 hover:bg-brand-blue transition-all disabled:opacity-50"
+                  className="w-full h-14 bg-brand-navy text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-brand-navy/20 hover:bg-brand-blue transition-all disabled:opacity-50 mt-2"
                   type="submit"
                 >
                   {isSubmitting ? 'Sending...' : 'Submit Recommendation'}
@@ -2158,7 +2216,6 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
 
 function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string }) => void, onAddPro: () => void, ads: Ad[], onSelectAd: (ad: Ad) => void, onSelectPost: (post: any) => void, scrollToTop?: () => void }) {
   const feedRef = useRef<HTMLDivElement>(null);
-  const [showExpertGuide, setShowExpertGuide] = useState(false);
   
   return (
     <motion.div 
@@ -2256,14 +2313,8 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
               Partner Expert Guides
             </h3>
           </div>
-          <ExpertGuidesPartners onReadFullGuide={() => setShowExpertGuide(true)} />
+          <ExpertGuidesPartners onReadFullGuide={() => onNavigate('guides', { guideId: 'gs-1' })} />
         </div>
-
-        {/* Expert Guide Modal */}
-        <ExpertGuideModal 
-          isOpen={showExpertGuide} 
-          onClose={() => setShowExpertGuide(false)} 
-        />
       </div>
     </motion.div>
   );
@@ -3659,6 +3710,7 @@ function EventDetailModal({ event, onClose }: { event: Event, onClose: () => voi
 function GuidesView({ initialGuideId, onModalClose, scrollToTop }: { initialGuideId?: string | null, onModalClose?: () => void, scrollToTop?: () => void }) {
   const [selectedCategory, setSelectedCategory] = useState<GuideCategory | null>(null);
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+  const [showArticleModal, setShowArticleModal] = useState(false);
 
   useEffect(() => {
     if (initialGuideId) {
@@ -3668,6 +3720,11 @@ function GuidesView({ initialGuideId, onModalClose, scrollToTop }: { initialGuid
       if (category) {
         setSelectedCategory(category);
         setSelectedArticleId(initialGuideId);
+        // Only open the modal automatically for the neighborhood guide for now, 
+        // to match the requested behavior for "Read full guide"
+        if (initialGuideId === 'gs-1') {
+          setShowArticleModal(true);
+        }
       }
     }
   }, [initialGuideId]);
@@ -3675,6 +3732,13 @@ function GuidesView({ initialGuideId, onModalClose, scrollToTop }: { initialGuid
   useEffect(() => {
     scrollToTop?.();
   }, [selectedCategory]);
+
+  const handleCloseModal = () => {
+    setShowArticleModal(false);
+    if (initialGuideId === 'gs-1') {
+      onModalClose?.();
+    }
+  };
 
   if (selectedCategory) {
     return (
@@ -3712,6 +3776,12 @@ function GuidesView({ initialGuideId, onModalClose, scrollToTop }: { initialGuid
             {selectedCategory.articles.map(article => (
               <div 
                 key={article.id} 
+                onClick={() => {
+                  setSelectedArticleId(article.id);
+                  if (article.id === 'gs-1') {
+                    setShowArticleModal(true);
+                  }
+                }}
                 className={cn(
                   "card p-6 space-y-3 hover-lift group cursor-pointer transition-all border-2",
                   selectedArticleId === article.id 
@@ -3739,6 +3809,12 @@ function GuidesView({ initialGuideId, onModalClose, scrollToTop }: { initialGuid
             ))}
           </div>
         </div>
+
+        {/* Article Modal */}
+        <ExpertGuideModal 
+          isOpen={showArticleModal} 
+          onClose={handleCloseModal} 
+        />
       </motion.div>
     );
   }
@@ -3906,8 +3982,6 @@ function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, on
     { label: 'Suggest a Pro', icon: Star, color: 'text-brand-yellow', action: () => setShowSuggestModal(true) },
     { label: 'Account Security', icon: Shield },
     { label: 'Change Password', icon: Lock },
-    { label: 'Payment', icon: CreditCard },
-    { label: 'Promos', icon: Gift },
     { label: 'Notifications', icon: Bell },
     { label: 'Privacy Settings', icon: Shield },
     { label: 'Support', icon: HelpCircle },
@@ -4026,58 +4100,6 @@ function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, on
               <button className="w-full py-4 bg-brand-blue text-white rounded-2xl font-bold shadow-lg shadow-brand-blue/20 mt-4">
                 Update Password
               </button>
-            </div>
-          </ProfileSubPage>
-        )}
-
-        {activeSubPage === 'Payment' && (
-          <ProfileSubPage title="Payment Methods" onBack={() => setActiveSubPage(null)}>
-            <div className="space-y-6">
-              <div className="space-y-3">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Saved Cards</p>
-                <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center gap-4">
-                  <div className="w-12 h-8 bg-slate-900 rounded flex items-center justify-center text-[10px] text-white font-bold">VISA</div>
-                  <div className="flex-1">
-                    <p className="font-bold text-slate-900">•••• •••• •••• 4242</p>
-                    <p className="text-xs text-slate-500">Expires 12/25</p>
-                  </div>
-                  <button className="text-brand-blue font-bold text-sm">Edit</button>
-                </div>
-              </div>
-              <button className="w-full py-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 font-bold flex items-center justify-center gap-2 hover:border-brand-blue/30 hover:text-brand-blue transition-all">
-                <Plus className="w-5 h-5" />
-                Add New Method
-              </button>
-            </div>
-          </ProfileSubPage>
-        )}
-
-        {activeSubPage === 'Promos' && (
-          <ProfileSubPage title="Promos & Referrals" onBack={() => setActiveSubPage(null)}>
-            <div className="space-y-6">
-              <div className="bg-brand-blue p-6 rounded-2xl text-white space-y-4 shadow-lg shadow-brand-blue/20">
-                <div className="flex items-center gap-3">
-                  <Gift className="w-8 h-8" />
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-wider opacity-80">Your Referral Code</p>
-                    <p className="text-2xl font-black">VALENCIA2024</p>
-                  </div>
-                </div>
-                <p className="text-sm opacity-90">Share this code with friends and you both get €10 credit on your next booking!</p>
-                <button className="w-full py-3 bg-white/20 hover:bg-white/30 rounded-xl font-bold transition-colors">
-                  Share Code
-                </button>
-              </div>
-              <div className="space-y-3">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Active Promos</p>
-                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center">
-                  <div>
-                    <p className="font-bold text-slate-900">Welcome Bonus</p>
-                    <p className="text-xs text-slate-500">€5 off any service</p>
-                  </div>
-                  <span className="text-xs font-bold text-brand-blue bg-brand-blue/5 px-2 py-1 rounded-lg">Applied</span>
-                </div>
-              </div>
             </div>
           </ProfileSubPage>
         )}

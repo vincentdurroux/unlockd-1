@@ -55,10 +55,12 @@ export const proService = {
 
   async submitRecommendation(recommendation: {
     user_email: string;
-    pro_name: string;
+    pro_name?: string;
+    company_name?: string;
     pro_category: string;
-    pro_contact?: string;
-    notes?: string;
+    pro_email?: string;
+    pro_phone?: string;
+    notes: string;
   }) {
     if (!isSupabaseConfigured) return null;
 
