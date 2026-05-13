@@ -3,22 +3,17 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 export interface SupabaseProfessional {
   id: string;
   name: string;
-  category: string;
+  company_name?: string;
+  profession: string;
   rating: number;
-  reviews: number;
   languages: string[];
-  image: string;
-  verified: boolean;
-  services: any[];
-  bio: string;
-  testimonials: any[];
+  image_url: string;
+  description: string;
   phone: string;
   email: string;
   website: string;
-  experience: string;
+  instagram: string;
   location: string;
-  lat: number;
-  lng: number;
   created_at?: string;
 }
 
@@ -44,13 +39,24 @@ export const proService = {
       throw error;
     }
 
-    return data.map((item: SupabaseProfessional) => ({
+    return data.map((item: any) => ({
       ...item,
-      coordinates: item.lat && item.lng ? { lat: item.lat, lng: item.lng } : undefined,
-      services: typeof item.services === 'string' ? JSON.parse(item.services) : item.services || [],
-      testimonials: typeof item.testimonials === 'string' ? JSON.parse(item.testimonials) : item.testimonials || [],
+      category: item.profession, // Map profession to category for frontend compatibility
+      image: item.image_url, // Map image_url to image for frontend compatibility
+      bio: item.description, // Map description to bio for frontend compatibility
       languages: typeof item.languages === 'string' ? JSON.parse(item.languages) : item.languages || []
     }));
+  },
+
+  async createProfessional(pro: any) {
+    if (!isSupabaseConfigured) return null;
+
+    const { data, error } = await supabase
+      .from('professionals')
+      .insert([pro]);
+
+    if (error) throw error;
+    return data;
   },
 
   async submitRecommendation(recommendation: {
@@ -60,6 +66,7 @@ export const proService = {
     pro_category: string;
     pro_email?: string;
     pro_phone?: string;
+    pro_image_url?: string;
     notes: string;
   }) {
     if (!isSupabaseConfigured) return null;
@@ -81,6 +88,35 @@ export const proService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
+    return data;
+  },
+
+  async updateRecommendationStatus(id: string, status: 'pending' | 'validated' | 'refused', adminNotes?: string | null) {
+    if (!isSupabaseConfigured) return null;
+
+    const updatePayload: any = { status };
+    if (adminNotes !== undefined) {
+      updatePayload.admin_notes = adminNotes;
+    } else if (status === 'pending' || status === 'validated') {
+      // Clear notes when moving away from refused status unless specifically provided
+      updatePayload.admin_notes = null;
+    }
+
+    const { data, error } = await supabase
+      .from('recommendations')
+      .update(updatePayload)
+      .eq('id', id)
+      .select();
+
+    if (error) {
+      console.error('Supabase update error:', error);
+      throw error;
+    }
+    
+    if (!data || data.length === 0) {
+      throw new Error(`No recommendation found with ID: ${id}`);
+    }
+
     return data;
   }
 };

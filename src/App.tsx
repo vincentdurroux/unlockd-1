@@ -31,6 +31,8 @@ import {
   CreditCard,
   Gift,
   Shield,
+  ShieldCheck,
+  UserPlus,
   HelpCircle,
   Info,
   LogOut,
@@ -43,6 +45,7 @@ import {
   Mail,
   Phone,
   Rocket,
+  AlertCircle,
   FileText,
   Users,
   HeartPulse,
@@ -67,7 +70,6 @@ import {
   Armchair,
   Bike,
   MessageSquare,
-  ShieldCheck,
   Check,
   MoreHorizontal
 } from 'lucide-react';
@@ -77,11 +79,161 @@ import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { GoogleGenAI } from "@google/genai";
-import { APIProvider, Map, AdvancedMarker, Pin } from '@vis.gl/react-google-maps';
+import { APIProvider, Map, AdvancedMarker, Pin, useMapsLibrary } from '@vis.gl/react-google-maps';
 import { useProfessionals } from './hooks/useProfessionals';
 import { proService } from './services/proService';
 
 const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
+
+const LANGUAGES_LIST = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian', 'Chinese', 'Japanese', 'Arabic', 'Catalan', 'Valencian'];
+
+function AddressAutocomplete({ 
+  value, 
+  onChange, 
+  onSelect 
+}: { 
+  value: string; 
+  onChange: (val: string) => void;
+  onSelect: (location: string, lat: number, lng: number) => void;
+}) {
+  const placesLib = useMapsLibrary('places');
+  const [autocompleteService, setAutocompleteService] = useState<google.maps.places.AutocompleteService | null>(null);
+  const [placesService, setPlacesService] = useState<google.maps.places.PlacesService | null>(null);
+  const [predictions, setPredictions] = useState<google.maps.places.AutocompletePrediction[]>([]);
+  const [showPredictions, setShowPredictions] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!placesLib) return;
+    setAutocompleteService(new placesLib.AutocompleteService());
+    setPlacesService(new placesLib.PlacesService(document.createElement('div')));
+  }, [placesLib]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setShowPredictions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    onChange(val);
+    if (val.length > 2 && autocompleteService) {
+      autocompleteService.getPlacePredictions({
+        input: val,
+        locationBias: { radius: 10000, center: { lat: 39.4699, lng: -0.3763 } }, // Better bias syntax
+      }, (results, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK) {
+          setPredictions(results || []);
+          setShowPredictions(true);
+        } else {
+          setPredictions([]);
+          setShowPredictions(false);
+        }
+      });
+    } else {
+      setPredictions([]);
+      setShowPredictions(false);
+    }
+  };
+
+  const handleSelectPrediction = (prediction: google.maps.places.AutocompletePrediction) => {
+    onChange(prediction.description);
+    setShowPredictions(false);
+    if (placesService) {
+      placesService.getDetails({
+        placeId: prediction.place_id,
+        fields: ['formatted_address', 'geometry']
+      }, (place) => {
+        if (place && place.geometry && place.geometry.location) {
+          onSelect(
+            place.formatted_address || prediction.description,
+            place.geometry.location.lat(),
+            place.geometry.location.lng()
+          );
+        }
+      });
+    }
+  };
+
+  return (
+    <div className="relative" ref={containerRef}>
+      <input 
+        value={value}
+        onChange={handleInputChange}
+        onFocus={() => predictions.length > 0 && setShowPredictions(true)}
+        placeholder="Type address..."
+        className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+      />
+      {showPredictions && predictions.length > 0 && (
+        <div className="absolute z-50 mt-2 w-full bg-white border border-slate-100 rounded-[24px] shadow-2xl overflow-hidden max-h-60 overflow-y-auto">
+          {predictions.map(p => (
+            <button
+              key={p.place_id}
+              type="button"
+              onClick={() => handleSelectPrediction(p)}
+              className="w-full px-5 py-4 text-left hover:bg-slate-50 transition-colors border-b border-slate-50 last:border-0 group"
+            >
+              <div className="flex items-start gap-3">
+                <MapPin className="w-4 h-4 text-slate-300 mt-0.5 group-hover:text-rose-500 transition-colors" />
+                <div className="space-y-0.5">
+                  <div className="font-bold text-slate-900 text-sm">{p.structured_formatting.main_text}</div>
+                  <div className="text-[10px] text-slate-400 tracking-tight">{p.structured_formatting.secondary_text}</div>
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function LanguageSelector({ 
+  selected, 
+  onToggle 
+}: { 
+  selected: string[]; 
+  onToggle: (lang: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-4 bg-slate-50 rounded-3xl border border-slate-100 max-h-60 overflow-y-auto">
+      {LANGUAGES_LIST.map(lang => {
+        const isSelected = selected.includes(lang);
+        return (
+          <button
+            key={lang}
+            type="button"
+            onClick={() => onToggle(lang)}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-xl transition-all text-left",
+              isSelected 
+                ? "bg-white text-brand-blue shadow-sm border border-brand-blue/20" 
+                : "text-slate-500 hover:bg-white/50 border border-transparent"
+            )}
+          >
+            <div className={cn(
+              "w-5 h-5 rounded-md border flex items-center justify-center transition-all",
+              isSelected 
+                ? "bg-brand-blue border-brand-blue shadow-sm shadow-brand-blue/20" 
+                : "bg-white border-slate-200"
+            )}>
+              {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3px]" />}
+            </div>
+            <span className={cn(
+              "text-[11px] font-semibold tracking-tight",
+              isSelected ? "text-brand-blue" : "text-slate-600"
+            )}>{lang}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -121,19 +273,14 @@ interface Professional {
   name: string;
   category: string;
   rating: number;
-  reviews: number;
   languages: string[];
   image: string;
-  verified: boolean;
-  services: { name: string; price: number; description: string }[];
   bio: string;
-  testimonials: { author: string; avatar: string; text: string; rating: number; date: string }[];
   phone?: string;
   email?: string;
   website?: string;
-  experience?: string;
+  instagram?: string;
   location?: string;
-  coordinates?: { lat: number; lng: number };
 }
 
 interface Event {
@@ -172,172 +319,88 @@ const MOCK_PROS: Professional[] = [
     name: 'Carlos Rodriguez',
     category: 'Plumber',
     rating: 4.9,
-    reviews: 124,
     languages: ['Spanish', 'English'],
     image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200&h=200',
-    verified: true,
     bio: 'Certified plumber with 15 years of experience in both residential and industrial installations. Specialized in modern water systems and emergency leak control. Known for punctuality and clean work.',
     phone: '+34 612 345 678',
     email: 'carlos.plumbing@example.com',
-    experience: '15 years',
-    location: 'Calle de la Paz, 4, 46003 Valencia',
-    coordinates: { lat: 39.4614, lng: -0.3756 },
-    services: [
-      { name: 'Emergency Leak Repair', price: 60, description: 'Fast response for urgent leaks.' },
-      { name: 'Installation', price: 120, description: 'New faucet or toilet installation.' }
-    ],
-    testimonials: [
-      { author: 'Thomas', avatar: 'https://i.pravatar.cc/150?u=thomas', text: 'Carlos saved my kitchen! Very professional and explained everything clearly.', rating: 5, date: '2 weeks ago' },
-      { author: 'Sarah', avatar: 'https://i.pravatar.cc/150?u=sarah', text: 'Fast and clean work. Best plumber I found in Valencia so far.', rating: 4, date: '1 month ago' }
-    ]
+    location: 'Calle de la Paz, 4, 46003 Valencia'
   },
   {
     id: '2',
     name: 'Elena Martinez',
     category: 'Lawyer',
     rating: 5.0,
-    reviews: 89,
     languages: ['Spanish', 'English', 'French'],
     image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200&h=200',
-    verified: true,
     bio: 'Specializing in immigration law and relocation services. I have helped over 500 expats obtain their NIE and TIE. My goal is to make your transition to Spain as smooth as possible through clear legal guidance.',
     phone: '+34 698 765 432',
     email: 'elena.law@example.com',
-    experience: '8 years',
-    location: 'Plaça de l\'Ajuntament, 1, 46002 Valencia',
-    coordinates: { lat: 39.4746, lng: -0.3768 },
-    services: [
-      { name: 'NIE Application', price: 150, description: 'Full assistance with NIE paperwork.' },
-      { name: 'Rental Contract Review', price: 80, description: 'Legal review of your lease.' }
-    ],
-    testimonials: [
-      { author: 'Marie', avatar: 'https://i.pravatar.cc/150?u=marie', text: 'Elena made my residency process stress-free. Highly recommended for any expat!', rating: 5, date: '3 days ago' }
-    ]
+    location: 'Plaça de l\'Ajuntament, 1, 46002 Valencia'
   },
   {
     id: '3',
     name: 'David Wilson',
     category: 'Translator',
     rating: 4.8,
-    reviews: 56,
     languages: ['English', 'Spanish', 'German'],
     image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200&h=200',
-    verified: true,
     bio: 'Professional sworn translator for English and German. Fast turnaround for official documents, business proposals, and website localization. Member of the Valencia Translators Association.',
     phone: '+34 654 321 098',
     email: 'david.trans@example.com',
-    experience: '10 years',
-    location: 'Carrer de la Guàrdia Civil, 22, 46020 Valencia',
-    coordinates: { lat: 39.4824, lng: -0.3544 },
-    services: [
-      { name: 'Official Translation', price: 40, description: 'Per page official document translation.' }
-    ],
-    testimonials: [
-      { author: 'Lukas', avatar: 'https://i.pravatar.cc/150?u=lukas', text: 'Perfect translations, accepted by all official offices without issue.', rating: 5, date: '2 months ago' }
-    ]
+    location: 'Carrer de la Guàrdia Civil, 22, 46020 Valencia'
   },
   {
     id: '4',
     name: 'Sophie Dubois',
     category: 'Real Estate',
     rating: 4.7,
-    reviews: 42,
     languages: ['French', 'English', 'Spanish'],
     image: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200&h=200',
-    verified: true,
     bio: 'Dedicated real estate agent focusing on the expat market. I find the best apartments before they even hit the main websites. I also provide full relocation support including school hunting for families.',
     phone: '+34 677 888 999',
     email: 'sophie.realty@example.com',
-    experience: '6 years',
-    location: 'Carrer de Quart, 15, 46001 Valencia',
-    coordinates: { lat: 39.4776, lng: -0.3792 },
-    services: [
-      { name: 'Apartment Hunting', price: 200, description: 'Personalized search for your next home.' },
-      { name: 'Relocation Package', price: 500, description: 'Full support for moving to Valencia.' }
-    ],
-    testimonials: [
-      { author: 'Julie', avatar: 'https://i.pravatar.cc/150?u=julie', text: 'Sophie found us the perfect flat in El Carmen in less than a week!', rating: 5, date: '1 week ago' }
-    ]
+    location: 'Carrer de Quart, 15, 46001 Valencia'
   },
   {
     id: '5',
     name: 'Marco Rossi',
     category: 'Handyman',
     rating: 4.9,
-    reviews: 78,
     languages: ['Italian', 'Spanish', 'English'],
     image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200&h=200',
-    verified: true,
     bio: 'Professional handyman with a passion for fixing things. I can help with anything from furniture assembly to general home maintenance. Reliable, efficient, and always with a smile.',
-    location: 'Carrer del Dr. Manuel Candela, 45, 46021 Valencia',
-    coordinates: { lat: 39.4754, lng: -0.3478 },
-    services: [
-      { name: 'Furniture Assembly', price: 50, description: 'Quick assembly of IKEA or other furniture.' },
-      { name: 'General Maintenance', price: 40, description: 'Fixing small things around the house.' }
-    ],
-    testimonials: [
-      { author: 'Luca', avatar: 'https://i.pravatar.cc/150?u=luca', text: 'Marco is a wizard! Fixed my door and my sink in no time.', rating: 5, date: '4 days ago' }
-    ]
+    location: 'Carrer del Dr. Manuel Candela, 45, 46021 Valencia'
   },
   {
     id: '6',
     name: 'Anna Schmidt',
     category: 'Accountant',
     rating: 4.9,
-    reviews: 34,
     languages: ['German', 'English', 'Spanish'],
     image: 'https://images.unsplash.com/photo-1567532939604-b6b5b0ad2f01?auto=format&fit=crop&q=80&w=200&h=200',
-    verified: true,
     bio: 'Tax consultant with extensive knowledge of the Spanish legal system. I specialize in helping digital nomads and expats optimize their taxes and set up their businesses in Valencia.',
-    location: 'Gran Via de les Germanies, 12, 46006 Valencia',
-    coordinates: { lat: 39.4674, lng: -0.3664 },
-    services: [
-      { name: 'Tax Advice', price: 120, description: 'Expert advice for expats and digital nomads.' },
-      { name: 'Business Setup', price: 300, description: 'Help with starting your company in Spain.' }
-    ],
-    testimonials: [
-      { author: 'Emma', avatar: 'https://i.pravatar.cc/150?u=emma', text: 'Anna explained the Spanish tax system so clearly. A life-saver!', rating: 5, date: '1 week ago' }
-    ]
+    location: 'Gran Via de les Germanies, 12, 46006 Valencia'
   },
   {
     id: '7',
     name: 'Dr. Sarah Taylor',
     category: 'Dentist',
     rating: 4.9,
-    reviews: 65,
     languages: ['English', 'Spanish'],
     image: 'https://images.unsplash.com/photo-1559839734-2b71f1e59816?auto=format&fit=crop&q=80&w=200&h=200',
-    verified: true,
     bio: 'International dentist specializing in cosmetic dentistry and preventive care. Providing high-quality care in a modern, expat-friendly environment.',
-    location: 'Gran Via, Valencia',
-    coordinates: { lat: 39.4684, lng: -0.3644 },
-    services: [
-      { name: 'Teeth Cleaning', price: 60, description: 'Professional cleaning and checkup.' },
-      { name: 'Emergency Appointment', price: 80, description: 'Same-day urgent dental care.' }
-    ],
-    testimonials: [
-      { author: 'Chris', avatar: 'https://i.pravatar.cc/150?u=12', text: 'Best dental experience in years. Very clean and professional.', rating: 5, date: '3 weeks ago' }
-    ]
+    location: 'Gran Via, Valencia'
   },
   {
     id: '8',
     name: 'Lucas Dupont',
     category: 'Electrician',
     rating: 4.8,
-    reviews: 47,
     languages: ['French', 'Spanish', 'English'],
     image: 'https://images.unsplash.com/photo-1590650046871-92c887180603?auto=format&fit=crop&q=80&w=200&h=200',
-    verified: true,
     bio: 'Certified electrician for all your home power needs. From fixing sockets to complete rewiring projects and smart home installations.',
-    location: 'Cabanyal, Valencia',
-    coordinates: { lat: 39.4682, lng: -0.3238 },
-    services: [
-      { name: 'Socket Repair', price: 40, description: 'Fixing faulty electrical outlets.' },
-      { name: 'Electrical Audit', price: 100, description: 'Full home safety inspection.' }
-    ],
-    testimonials: [
-      { author: 'Pierre', avatar: 'https://i.pravatar.cc/150?u=22', text: 'Very efficient and honest. Explained the issue clearly.', rating: 5, date: '1 month ago' }
-    ]
+    location: 'Cabanyal, Valencia'
   }
 ];
 
@@ -744,7 +807,10 @@ export default function App() {
   const [proEmail, setProEmail] = useState('');
   const [proPhone, setProPhone] = useState('');
   const [proRecommendation, setProRecommendation] = useState('');
+  const [proImageFile, setProImageFile] = useState<File | null>(null);
+  const [proImagePreview, setProImagePreview] = useState<string | null>(null);
   const [isSubmittingPro, setIsSubmittingPro] = useState(false);
+  const [isUploadingProImage, setIsUploadingProImage] = useState(false);
   const [proError, setProError] = useState<string | null>(null);
 
   // Form states for Ad
@@ -761,6 +827,7 @@ export default function App() {
   const [adSize, setAdSize] = useState('M');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const recommendationFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchAds();
@@ -775,6 +842,15 @@ export default function App() {
     }
   };
 
+  const handleProFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setProImageFile(file);
+      const url = URL.createObjectURL(file);
+      setProImagePreview(url);
+    }
+  };
+
   const handlePostPro = async () => {
     if ((!proName && !proCompany) || !proCategory || (!proEmail.trim() && !proPhone.trim())) return;
     
@@ -782,6 +858,23 @@ export default function App() {
     setProError(null);
     
     try {
+      let proImageUrl = '';
+      if (proImageFile) {
+        setIsUploadingProImage(true);
+        try {
+          const sanitizedName = proImageFile.name
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-zA-Z0-9.-]/g, '_')
+            .replace(/_{2,}/g, '_');
+            
+          const path = `images_pro/${Date.now()}_${sanitizedName}`;
+          proImageUrl = await storageService.uploadFile('images', path, proImageFile);
+        } finally {
+          setIsUploadingProImage(false);
+        }
+      }
+
       await proService.submitRecommendation({
         user_email: "vincentdurroux@gmail.com",
         pro_name: proName,
@@ -789,6 +882,7 @@ export default function App() {
         pro_category: proCategory,
         pro_email: proEmail,
         pro_phone: proPhone,
+        pro_image_url: proImageUrl,
         notes: proRecommendation
       });
       
@@ -799,11 +893,13 @@ export default function App() {
       setProEmail('');
       setProPhone('');
       setProRecommendation('');
+      setProImageFile(null);
+      setProImagePreview(null);
       setShowAddPro(false);
       
       alert('Thank you for your recommendation! Our team will review it.');
     } catch (error) {
-      console.error('Error posting pro:', error);
+      console.error('Error submitting pro recommendation:', error);
       setProError('Failed to send recommendation. Please try again.');
     } finally {
       setIsSubmittingPro(false);
@@ -963,7 +1059,8 @@ export default function App() {
   }, [activeView, selectedAd, selectedPost, initialEventId, initialProId, initialGuideId]);
 
   return (
-    <div className="flex flex-col h-screen h-[100dvh] bg-white w-full mx-auto shadow-2xl overflow-hidden relative">
+    <APIProvider apiKey={GOOGLE_MAPS_KEY} version="weekly">
+      <div className="flex flex-col h-screen h-[100dvh] bg-white w-full mx-auto shadow-2xl overflow-hidden relative">
       <AnimatePresence>
         {isStarting && <SplashScreen />}
       </AnimatePresence>
@@ -1201,11 +1298,42 @@ export default function App() {
 
                 <div className="p-8 pt-4 space-y-6">
                   {proError && (
-                    <div className="p-3 bg-red-50 text-red-500 text-xs font-bold rounded-xl border border-red-100">
+                    <div className="p-3 bg-red-50 text-red-500 text-xs font-semibold rounded-xl border border-red-100">
                       {proError}
                     </div>
                   )}
+
                   <div className="space-y-5">
+                    {/* Profile Photo Section */}
+                    <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl gap-3">
+                      <div className="relative group">
+                        <div className="w-20 h-20 rounded-full bg-white border-2 border-white shadow-md overflow-hidden flex items-center justify-center">
+                          {proImagePreview ? (
+                            <img src={proImagePreview} alt="Preview" className="w-full h-full object-cover" />
+                          ) : (
+                            <Camera className="w-6 h-6 text-slate-300" />
+                          )}
+                        </div>
+                        <button 
+                          type="button"
+                          onClick={() => recommendationFileInputRef.current?.click()}
+                          className="absolute -bottom-1 -right-1 p-1.5 bg-brand-yellow text-white rounded-full shadow-md hover:scale-105 transition-all"
+                        >
+                          <Plus className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Profile Photo (Optional)</p>
+                      </div>
+                      <input 
+                        type="file"
+                        ref={recommendationFileInputRef}
+                        onChange={handleProFileChange}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                    </div>
+
                     {/* Basic Info Section */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 px-1">
@@ -1214,7 +1342,7 @@ export default function App() {
                       
                       <div className="space-y-4">
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Full Name</label>
+                          <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Full Name</label>
                           <input 
                             type="text" 
                             placeholder="e.g. Maria Gonzalez" 
@@ -1224,7 +1352,7 @@ export default function App() {
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Company Name</label>
+                          <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Company Name</label>
                           <input 
                             type="text" 
                             placeholder="e.g. Legal Experts SL" 
@@ -1234,7 +1362,7 @@ export default function App() {
                           />
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Profession</label>
+                          <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Profession</label>
                           <input 
                             type="text" 
                             placeholder="e.g. Attorney, Plumber, Doctor" 
@@ -1636,7 +1764,8 @@ export default function App() {
           ))}
         </div>
       </nav>
-    </div>
+      </div>
+    </APIProvider>
   );
 }
 
@@ -1854,7 +1983,7 @@ function AdDetailModal({ ad, onClose }: { ad: Ad | any, onClose: () => void }) {
                   </p>
                   <h3 className="text-2xl font-bold text-slate-900 font-display">{ad.title}</h3>
                 </div>
-                <div className="text-2xl font-black text-brand-blue">
+                <div className="text-2xl font-semibold text-brand-blue">
                   {price}
                 </div>
               </div>
@@ -1991,18 +2120,240 @@ function AdDetailModal({ ad, onClose }: { ad: Ad | any, onClose: () => void }) {
 );
 }
 
-// --- Views ---
+function RecommendationItem({ rec, onUpdate, onStartAdding }: { rec: any, onUpdate: () => void, onStartAdding: (rec: any) => void }) {
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [showRefuseForm, setShowRefuseForm] = useState(false);
+  const [refuseReason, setRefuseReason] = useState(rec.admin_notes || '');
+  const [error, setError] = useState<string | null>(null);
+
+  const handleUpdateStatus = async (status: 'validated' | 'refused' | 'pending') => {
+    console.log('Attempting to update status:', { id: rec.id, status, refuseReason });
+    setIsUpdating(true);
+    setError(null);
+    try {
+      const result = await proService.updateRecommendationStatus(rec.id, status, status === 'refused' ? refuseReason : null);
+      console.log('Update successful:', result);
+      if (status === 'pending') setRefuseReason('');
+      onUpdate();
+      setShowRefuseForm(false);
+    } catch (err: any) {
+      console.error('Update failed:', err);
+      setError(err?.message || "Failed to update status. Make sure columns 'status' and 'admin_notes' exist in your Supabase table.");
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'validated': return 'text-emerald-500 bg-emerald-50 border-emerald-100';
+      case 'refused': return 'text-red-500 bg-red-50 border-red-100';
+      default: return 'text-amber-500 bg-amber-50 border-amber-100';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'validated': return <CheckCircle2 className="w-3.5 h-3.5" />;
+      case 'refused': return <X className="w-3.5 h-3.5" />;
+      default: return <Clock className="w-3.5 h-3.5" />;
+    }
+  };
+
+  return (
+    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all space-y-4">
+      <div className="flex justify-between items-start">
+        <div className="flex gap-4">
+          {rec.pro_image_url && (
+            <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100 shadow-sm">
+              <img src={rec.pro_image_url} alt="" className="w-full h-full object-cover" />
+            </div>
+          )}
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-lg text-slate-900">{rec.pro_name || rec.company_name}</h3>
+              {rec.pro_name && rec.company_name && (
+                <span className="text-slate-400 font-medium text-sm">at {rec.company_name}</span>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-2 py-0.5 bg-slate-100 text-[10px] font-semibold uppercase text-slate-500 rounded-full tracking-widest">{rec.pro_category}</span>
+              <div className={cn(
+                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border flex items-center gap-1",
+                getStatusColor(rec.status)
+              )}>
+                {getStatusIcon(rec.status)}
+                {rec.status || 'pending'}
+              </div>
+            </div>
+          </div>
+        </div>
+        <span className="text-[10px] text-slate-400 font-semibold uppercase">{rec.created_at ? new Date(rec.created_at).toLocaleDateString() : 'Recently'}</span>
+      </div>
+      
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+        {rec.pro_email && (
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-1">
+              <Mail className="w-3 h-3" /> Email
+            </p>
+            <p className="font-medium text-slate-700 truncate">{rec.pro_email}</p>
+          </div>
+        )}
+        {rec.pro_phone && (
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-1">
+              <Phone className="w-3 h-3" /> Phone
+            </p>
+            <p className="font-medium text-slate-700">{rec.pro_phone}</p>
+          </div>
+        )}
+        <div className="space-y-1">
+          <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Suggested by</p>
+          <p className="font-medium text-brand-blue truncate">{rec.user_email}</p>
+        </div>
+      </div>
+
+      {rec.notes && (
+        <div className="bg-slate-50 p-4 rounded-2xl">
+          <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider mb-2">Member Notes</p>
+          <p className="text-slate-600 text-sm leading-relaxed italic">"{rec.notes}"</p>
+        </div>
+      )}
+
+      {rec.admin_notes && (
+        <div className="bg-red-50/50 p-4 rounded-2xl border border-red-100">
+          <p className="text-[10px] uppercase font-semibold text-red-500 tracking-wider mb-2">Admin Explanation</p>
+          <p className="text-red-700 text-sm leading-relaxed">{rec.admin_notes}</p>
+        </div>
+      )}
+
+      {error && (
+        <div className="bg-red-50 p-3 rounded-xl border border-red-100 text-xs text-red-500 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          {error}
+        </div>
+      )}
+
+      <div className="pt-4 border-t border-slate-50 flex flex-wrap items-center gap-3">
+        {!showRefuseForm ? (
+          <>
+            {rec.status === 'validated' ? (
+              <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest">
+                <CheckCircle2 className="w-3.5 h-3.5" /> Validated
+              </div>
+            ) : (
+              <button 
+                disabled={isUpdating}
+                onClick={() => handleUpdateStatus('validated')}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-500 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" /> Start adding pro
+              </button>
+            )}
+            {rec.status === 'pending' && (
+              <button 
+                disabled={isUpdating}
+                onClick={() => setShowRefuseForm(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50"
+              >
+                <X className="w-3.5 h-3.5" /> Refuse
+              </button>
+            )}
+            {rec.status === 'validated' && (
+              <button 
+                onClick={() => onStartAdding(rec)}
+                className="flex items-center gap-2 px-4 py-2 bg-brand-blue text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-brand-blue/20 hover:scale-105 active:scale-95 transition-all"
+              >
+                <UserPlus className="w-3.5 h-3.5" /> Fill Professional Profile
+              </button>
+            )}
+            {rec.status !== 'pending' && (
+              <button 
+                disabled={isUpdating}
+                onClick={() => handleUpdateStatus('pending')}
+                className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-amber-50 hover:text-amber-500 transition-all disabled:opacity-50"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Reset pending
+              </button>
+            )}
+          </>
+        ) : (
+          <div className="w-full space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Refusal Reason / Explanation</label>
+              <textarea 
+                value={refuseReason}
+                onChange={e => setRefuseReason(e.target.value)}
+                placeholder="Explain why this professional was refused..."
+                className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-red-100 text-sm h-24"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <button 
+                disabled={isUpdating || !refuseReason.trim()}
+                onClick={() => handleUpdateStatus('refused')}
+                className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-red-600 transition-all disabled:opacity-50"
+              >
+                Confirm refusal
+              </button>
+              <button 
+                onClick={() => setShowRefuseForm(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-500 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-slate-200 transition-all"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<'recommendations' | 'add_pro'>('recommendations');
+
+  // Form state for adding pro
+  const [newPro, setNewPro] = useState({
+    name: '',
+    company_name: '',
+    category: '',
+    rating: 0,
+    languages: [] as string[],
+    image: '',
+    bio: '',
+    phone: '',
+    email: '',
+    website: '',
+    instagram: '',
+    location: ''
+  });
+
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [msg, setMsg] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     scrollToTop?.();
     fetchRecommendations();
   }, []);
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSelectedFile(file);
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+    }
+  };
+
   const fetchRecommendations = async () => {
+    setLoading(true);
     try {
       const data = await proService.getRecommendations();
       setRecommendations(data || []);
@@ -2013,81 +2364,308 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
     }
   };
 
+  const handleStartAdding = (rec: any) => {
+    setNewPro({
+      ...newPro,
+      name: rec.pro_name || '',
+      company_name: rec.company_name || '',
+      category: rec.pro_category || '',
+      phone: rec.pro_phone || '',
+      email: rec.pro_email || '',
+      image: rec.pro_image_url || '',
+    });
+    if (rec.pro_image_url) {
+      setPreviewUrl(rec.pro_image_url);
+    }
+    setActiveTab('add_pro');
+    scrollToTop?.();
+  };
+
+  const handleAddPro = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setMsg(null);
+
+    try {
+      let imageUrl = newPro.image;
+
+      if (selectedFile) {
+        // Sanitize path
+        const sanitizedName = selectedFile.name
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-zA-Z0-9.-]/g, '_')
+          .replace(/_{2,}/g, '_');
+          
+        const path = `images_pro/${Date.now()}_${sanitizedName}`;
+        imageUrl = await storageService.uploadFile('images', path, selectedFile);
+      }
+
+      if (!imageUrl) {
+        imageUrl = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256';
+      }
+
+      const formattedPro = {
+        name: newPro.name,
+        company_name: newPro.company_name,
+        profession: newPro.category,
+        rating: newPro.rating,
+        languages: newPro.languages,
+        image_url: imageUrl,
+        description: newPro.bio,
+        phone: newPro.phone,
+        email: newPro.email,
+        website: newPro.website,
+        instagram: newPro.instagram,
+        location: newPro.location
+      };
+      await proService.createProfessional(formattedPro);
+      setMsg({ type: 'success', text: 'Professional added successfully!' });
+      setNewPro({
+        name: '',
+        company_name: '',
+        category: '',
+        rating: 0,
+        languages: [],
+        image: '',
+        bio: '',
+        phone: '',
+        email: '',
+        website: '',
+        instagram: '',
+        location: ''
+      });
+      setSelectedFile(null);
+      setPreviewUrl(null);
+    } catch (err) {
+      console.error(err);
+      setMsg({ type: 'error', text: 'Failed to add professional.' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="max-w-4xl mx-auto px-6 py-12"
+      className="max-w-4xl mx-auto px-6 py-12 text-left"
     >
-      <div className="flex items-center justify-between mb-8">
-        <div className="space-y-1 text-left">
-           <h2 className="text-2xl font-black font-display text-brand-navy flex items-center gap-2">
+      <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-6">
+        <div className="space-y-1">
+           <h2 className="text-2xl font-medium font-display text-brand-navy flex items-center gap-2">
              <ShieldCheck className="w-8 h-8 text-brand-blue" />
              Admin Dashboard
            </h2>
-           <p className="text-slate-500 font-medium tracking-tight">Review member recommendations for new professionals.</p>
+           <h3 className="text-slate-500 font-medium tracking-tight">Review recommendations and manage professionals.</h3>
+        </div>
+
+        <div className="flex bg-slate-100 p-1 rounded-2xl self-start">
+          <button 
+            onClick={() => setActiveTab('recommendations')}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
+              activeTab === 'recommendations' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Recommendations
+          </button>
+          <button 
+            onClick={() => setActiveTab('add_pro')}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
+              activeTab === 'add_pro' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Add Pro
+          </button>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : recommendations.length === 0 ? (
-          <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
-            <p className="text-slate-400 font-medium">No recommendations yet.</p>
-          </div>
-        ) : (
-          recommendations.map((rec) => (
-            <div key={rec.id} className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all space-y-4 text-left">
-              <div className="flex justify-between items-start">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-bold text-lg text-slate-900">{rec.pro_name || rec.company_name}</h3>
-                    {rec.pro_name && rec.company_name && (
-                      <span className="text-slate-400 font-medium text-sm">at {rec.company_name}</span>
-                    )}
-                  </div>
-                  <span className="px-2 py-0.5 bg-slate-100 text-[10px] font-black uppercase text-slate-500 rounded-full tracking-widest">{rec.pro_category}</span>
-                </div>
-                <span className="text-[10px] text-slate-400 font-bold uppercase">{rec.created_at ? new Date(rec.created_at).toLocaleDateString() : 'Recently'}</span>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                {rec.pro_email && (
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider flex items-center gap-1">
-                      <Mail className="w-3 h-3" /> Email
-                    </p>
-                    <p className="font-medium text-slate-700 truncate">{rec.pro_email}</p>
-                  </div>
-                )}
-                {rec.pro_phone && (
-                  <div className="space-y-1">
-                    <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider flex items-center gap-1">
-                      <Phone className="w-3 h-3" /> Phone
-                    </p>
-                    <p className="font-medium text-slate-700">{rec.pro_phone}</p>
-                  </div>
-                )}
-                <div className="space-y-1">
-                  <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider">Suggested by</p>
-                  <p className="font-medium text-brand-blue truncate">{rec.user_email}</p>
-                </div>
-              </div>
-
-              {rec.notes && (
-                <div className="bg-slate-50 p-4 rounded-2xl">
-                  <p className="text-[10px] uppercase font-black text-slate-400 tracking-wider mb-2">Member Notes</p>
-                  <p className="text-slate-600 text-sm leading-relaxed italic">"{rec.notes}"</p>
-                </div>
-              )}
+      {activeTab === 'recommendations' ? (
+        <div className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
             </div>
-          ))
+          ) : recommendations.length === 0 ? (
+            <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
+              <p className="text-slate-400 font-medium">No recommendations yet.</p>
+            </div>
+          ) : (
+            recommendations.map((rec) => (
+              <RecommendationItem 
+                key={rec.id} 
+                rec={rec} 
+                onUpdate={fetchRecommendations} 
+                onStartAdding={handleStartAdding}
+              />
+            ))
         )}
       </div>
+      ) : (
+        <form onSubmit={handleAddPro} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl space-y-8">
+          {msg && (
+            <div className={cn(
+              "p-4 rounded-2xl font-semibold text-sm border font-display",
+              msg.type === 'success' ? "bg-green-50 text-green-600 border-green-100" : "bg-red-50 text-red-600 border-red-100"
+            )}>
+              {msg.text}
+            </div>
+          )}
+
+          <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-[32px] border border-dashed border-slate-200 gap-4 mb-8">
+            <div className="relative group">
+              <div className="w-32 h-32 rounded-full bg-white border-4 border-white shadow-xl overflow-hidden flex items-center justify-center">
+                {previewUrl ? (
+                  <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                ) : (
+                  <div className="flex flex-col items-center justify-center text-slate-300">
+                    <Camera className="w-10 h-10 mb-1" />
+                    <span className="text-[10px] font-semibold uppercase tracking-widest">No Image</span>
+                  </div>
+                )}
+              </div>
+              <button 
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute bottom-0 right-0 p-3 bg-brand-blue text-white rounded-full shadow-lg hover:bg-brand-navy transition-all active:scale-95"
+              >
+                <Plus className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="text-center">
+              <h4 className="font-semibold font-display text-brand-navy text-sm uppercase tracking-widest">Profile Photo</h4>
+              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">Click the button to upload a file</p>
+            </div>
+            <input 
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept="image/*"
+              className="hidden"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Full Name</label>
+              <input 
+                required
+                value={newPro.name}
+                onChange={e => setNewPro({...newPro, name: e.target.value})}
+                placeholder=""
+                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Company Name</label>
+              <input 
+                value={newPro.company_name}
+                onChange={e => setNewPro({...newPro, company_name: e.target.value})}
+                placeholder=""
+                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Profession</label>
+              <input 
+                required
+                value={newPro.category}
+                onChange={e => setNewPro({...newPro, category: e.target.value})}
+                placeholder=""
+                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Email</label>
+              <input 
+                type="email"
+                value={newPro.email}
+                onChange={e => setNewPro({...newPro, email: e.target.value})}
+                placeholder=""
+                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Phone</label>
+              <input 
+                type="tel"
+                value={newPro.phone}
+                onChange={e => setNewPro({...newPro, phone: e.target.value})}
+                placeholder=""
+                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Location Address</label>
+              <AddressAutocomplete 
+                value={newPro.location}
+                onChange={val => setNewPro({...newPro, location: val})}
+                onSelect={(location) => setNewPro({...newPro, location})}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Website</label>
+              <input 
+                value={newPro.website}
+                onChange={e => setNewPro({...newPro, website: e.target.value})}
+                placeholder=""
+                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Instagram (@handle)</label>
+              <input 
+                value={newPro.instagram}
+                onChange={e => setNewPro({...newPro, instagram: e.target.value})}
+                placeholder=""
+                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">Languages Spoken</label>
+            <LanguageSelector 
+              selected={newPro.languages}
+              onToggle={lang => {
+                const langs = newPro.languages.includes(lang)
+                  ? newPro.languages.filter(l => l !== lang)
+                  : [...newPro.languages, lang];
+                setNewPro({...newPro, languages: langs});
+              }}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">About (Bio)</label>
+            <textarea 
+              required
+              value={newPro.bio}
+              onChange={e => setNewPro({...newPro, bio: e.target.value})}
+              placeholder="Short professional biography..."
+              className="w-full h-24 bg-slate-50 border border-slate-100 rounded-2xl p-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all resize-none font-display text-sm leading-relaxed"
+            />
+          </div>
+
+          <button 
+            type="submit"
+            disabled={isSubmitting}
+            className="w-full h-14 bg-brand-navy text-white rounded-2xl font-semibold uppercase tracking-wider shadow-lg shadow-brand-navy/10 hover:bg-brand-blue transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98] text-xs"
+          >
+            {isSubmitting ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <Plus className="w-4 h-4" />
+                Add Professional to App
+              </>
+            )}
+          </button>
+        </form>
+      )}
     </motion.div>
   );
 }
@@ -2169,7 +2747,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
         >
           <div className="p-8 space-y-6">
             <div className="space-y-1">
-              <h3 className="text-2xl font-black font-display text-brand-navy">Recommend a Professional</h3>
+              <h3 className="text-2xl font-semibold font-display text-brand-navy">Recommend a Professional</h3>
               <p className="text-xs text-slate-500 font-medium tracking-tight">Help us discover the best local talent for our community.</p>
             </div>
             
@@ -2178,7 +2756,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                 <div className="w-16 h-16 bg-green-100 text-green-500 rounded-full flex items-center justify-center mx-auto">
                   <Check className="w-8 h-8" />
                 </div>
-                <p className="font-bold text-slate-900">Recommendation Sent!</p>
+                <p className="font-semibold text-slate-900">Recommendation Sent!</p>
                 <p className="text-sm text-slate-500">Thank you for helping the community grow.</p>
               </div>
             ) : (
@@ -2191,7 +2769,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                 
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Full Name</label>
+                    <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">Full Name</label>
                     <input 
                       value={formData.pro_name}
                       onChange={e => setFormData({...formData, pro_name: e.target.value})}
@@ -2200,7 +2778,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Company Name</label>
+                    <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">Company Name</label>
                     <input 
                       value={formData.company_name}
                       onChange={e => setFormData({...formData, company_name: e.target.value})}
@@ -2211,7 +2789,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Profession</label>
+                  <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">Profession</label>
                   <input 
                     required
                     value={formData.pro_category}
@@ -2223,7 +2801,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Email</label>
+                    <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">Email</label>
                     <input 
                       type="email"
                       value={formData.pro_email}
@@ -2233,7 +2811,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                     />
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Phone</label>
+                    <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">Phone</label>
                     <input 
                       type="tel"
                       value={formData.pro_phone}
@@ -2245,7 +2823,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 px-1">Why do you recommend them?</label>
+                  <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">Why do you recommend them?</label>
                   <textarea 
                     required
                     value={formData.notes}
@@ -2257,7 +2835,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
                 
                 <button 
                   disabled={isSubmitting}
-                  className="w-full h-14 bg-brand-navy text-white rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-brand-navy/20 hover:bg-brand-blue transition-all disabled:opacity-50 mt-2"
+                  className="w-full h-12 bg-brand-navy text-white rounded-2xl font-semibold uppercase tracking-wider shadow-lg shadow-brand-navy/10 hover:bg-brand-blue transition-all disabled:opacity-50 mt-2 text-[11px]"
                   type="submit"
                 >
                   {isSubmitting ? 'Sending...' : 'Submit Recommendation'}
@@ -2284,7 +2862,7 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 text-center md:text-left mb-12">
         <div className="space-y-1 flex flex-col items-center md:items-start">
-          <h2 className="text-[22px] font-bold font-display text-brand-navy">Hello, Vincent!</h2>
+          <h2 className="text-[22px] font-semibold font-display text-brand-navy">Hello, Vincent!</h2>
           <p className="text-slate-500 text-sm">Welcome back to your local community.</p>
         </div>
       </div>
@@ -2309,7 +2887,7 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
         
         <div className="relative z-10 grid md:grid-cols-2 gap-12 items-center">
           <div className="space-y-6 md:space-y-8 flex flex-col items-center md:items-start text-center md:text-left">
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold font-display leading-[1.15] tracking-tight max-w-2xl">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-semibold font-display leading-[1.15] tracking-tight max-w-2xl">
               Find recommended <span className="text-brand-blue italic">Pros</span> near you.
             </h1>
             <p className="text-slate-500 text-base md:text-xl max-w-md leading-relaxed">
@@ -2550,7 +3128,7 @@ function ExpertGuideModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
                     </a>
                   </div>
 
-                  <button className="w-full py-4 bg-brand-yellow text-slate-900 font-black text-sm uppercase tracking-widest rounded-2xl shadow-xl shadow-brand-yellow/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
+                  <button className="w-full py-4 bg-brand-yellow text-slate-900 font-semibold text-sm uppercase tracking-widest rounded-2xl shadow-xl shadow-brand-yellow/20 hover:scale-[1.02] active:scale-[0.98] transition-all">
                     Visit Website
                   </button>
                 </div>
@@ -2832,7 +3410,7 @@ function ProMap({ pros, onSelectPro, center }: { pros: Professional[], onSelectP
     <div className="w-full h-full">
       <APIProvider apiKey={GOOGLE_MAPS_KEY}>
         <Map
-          defaultCenter={center}
+          defaultCenter={{ lat: 39.4699, lng: -0.3763 }}
           defaultZoom={13}
           mapId="e8677c77d4677732"
           className="w-full h-full"
@@ -2841,27 +3419,6 @@ function ProMap({ pros, onSelectPro, center }: { pros: Professional[], onSelectP
           scrollwheel={true}
           internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
         >
-          {pros.map((pro, index) => pro.coordinates && (
-            <AdvancedMarker
-              key={pro.id}
-              position={pro.coordinates}
-              onClick={() => onSelectPro(pro)}
-              title={pro.name}
-            >
-              <div className="relative group/pin">
-                <Pin 
-                  background={'#0038FF'} 
-                  borderColor={'#fff'} 
-                  glyphColor={'#fff'}
-                  glyph={(index + 1).toString()}
-                />
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-white rounded-lg shadow-xl border border-slate-100 whitespace-nowrap opacity-0 group-hover/pin:opacity-100 transition-opacity pointer-events-none z-50">
-                  <p className="text-[10px] font-bold text-brand-navy">{pro.name}</p>
-                  <p className="text-[8px] text-slate-400 font-medium">Click to see details</p>
-                </div>
-              </div>
-            </AdvancedMarker>
-          ))}
         </Map>
       </APIProvider>
     </div>
@@ -3032,7 +3589,7 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Live matches</span>
                       </div>
                       
-                      {MOCK_PROS.filter(p => 
+                      {allPros.filter(p => 
                         p.name.toLowerCase().includes(search.toLowerCase()) || 
                         p.category.toLowerCase().includes(search.toLowerCase())
                       ).slice(0, 6).length > 0 ? (
@@ -3239,7 +3796,6 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
                           <div className="flex items-center gap-1">
                             <Star className="w-3 h-3 text-brand-yellow fill-brand-yellow" />
                             <span className="text-xs font-normal text-slate-700">{pro.rating}</span>
-                            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-widest">({pro.reviews})</span>
                           </div>
                         </div>
                       </div>
@@ -3328,7 +3884,7 @@ function MessagesView({ scrollToTop }: { scrollToTop?: () => void }) {
         selectedChat ? "hidden md:flex" : "flex"
       )}>
         <div className="p-6 border-b border-slate-100 bg-white/50 backdrop-blur">
-          <h2 className="text-xl font-black text-slate-900 font-display">Messages</h2>
+          <h2 className="text-xl font-semibold text-slate-900 font-display">Messages</h2>
         </div>
         <div className="flex-1 overflow-y-auto">
           {chats.map(chat => (
@@ -3476,7 +4032,6 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-xl font-medium border border-slate-100">
                   <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
                   <span>{pro.rating}</span>
-                  <span className="text-slate-400 font-normal">({pro.reviews} reviews)</span>
                 </div>
               </div>
             </div>
@@ -3511,6 +4066,19 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
                     </a>
                   </div>
                 )}
+                {pro.instagram && (
+                  <div className="flex items-center gap-3">
+                    <Instagram className="w-3.5 h-3.5 text-pink-500/70" />
+                    <a 
+                      href={pro.instagram.startsWith('http') ? pro.instagram : `https://instagram.com/${pro.instagram.replace(/^@/, '')}`} 
+                      target="_blank" 
+                      rel="noopener noreferrer" 
+                      className="text-sm text-slate-500 hover:text-brand-blue transition-colors"
+                    >
+                      {pro.instagram.startsWith('@') ? pro.instagram : `@${pro.instagram}`}
+                    </a>
+                  </div>
+                )}
                 {pro.location && (
                   <div className="flex items-center gap-3">
                     <MapPin className="w-3.5 h-3.5 text-rose-500/70" />
@@ -3535,56 +4103,6 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
                 <p className="text-slate-600 leading-relaxed text-base font-medium">
                   {pro.bio}
                 </p>
-              </section>
-
-              <section className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-2 h-2 rounded-full bg-brand-blue" />
-                    <h4 className="text-lg font-semibold text-slate-900 font-display uppercase tracking-wider">Community feedback</h4>
-                  </div>
-                </div>
-                <div className="grid gap-4">
-                  {pro.testimonials.map((t, i) => (
-                    <motion.div 
-                      key={i}
-                      initial={{ opacity: 0, x: -10 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: i * 0.1 }}
-                      className="p-6 bg-slate-50/50 rounded-3xl border border-slate-100/50 hover:bg-white hover:shadow-xl hover:border-brand-blue/10 transition-all group"
-                    >
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex gap-3 items-center">
-                          <img src={t.avatar} alt="" className="w-10 h-10 rounded-full border-2 border-white shadow-sm" />
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <button 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onClose();
-                                  onNavigate('messages');
-                                }}
-                                className="font-bold text-slate-900 hover:text-brand-blue flex items-center gap-1.5 transition-colors group/chat"
-                              >
-                                {t.author}
-                                <MessageSquare className="w-3.5 h-3.5 text-brand-blue opacity-70 group-hover/chat:opacity-100 transition-opacity" />
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-0.5">
-                              {[...Array(5)].map((_, idx) => (
-                                <Star key={idx} className={cn("w-2.5 h-2.5", idx < t.rating ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
-                              ))}
-                            </div>
-                          </div>
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{t.date}</span>
-                      </div>
-                      <p className="text-slate-600 text-sm leading-relaxed font-medium pl-1">
-                        "{t.text}"
-                      </p>
-                    </motion.div>
-                  ))}
-                </div>
               </section>
             </div>
 
@@ -4058,9 +4576,9 @@ function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, on
           <img src="/photo-vincent.jpg" alt="Profile" className="w-full h-full object-cover" />
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-bold font-display text-brand-navy">Vincent D.</h2>
+          <h2 className="text-xl font-semibold font-display text-brand-navy">Vincent D.</h2>
           {isAdmin && (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[10px] font-black uppercase tracking-widest rounded-full mt-1">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[10px] font-semibold uppercase tracking-widest rounded-full mt-1">
               <ShieldCheck className="w-3 h-3" /> Admin
             </span>
           )}
@@ -4295,7 +4813,7 @@ function ProfileSubPage({ title, onBack, children }: { title: string, onBack: ()
         <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-50 rounded-full transition-colors">
           <ArrowLeft className="w-6 h-6 text-slate-900" />
         </button>
-        <h2 className="text-xl font-bold font-display text-brand-navy">{title}</h2>
+        <h2 className="text-xl font-semibold font-display text-brand-navy">{title}</h2>
       </div>
       <div className="flex-1 overflow-y-auto p-6 pb-24">
         {children}
