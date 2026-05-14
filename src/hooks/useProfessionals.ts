@@ -11,32 +11,29 @@ export function useProfessionals(fallbackData: any[] = []) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
-  useEffect(() => {
-    async function loadPros() {
-      try {
-        if (!isSupabaseConfigured) {
-          setProfessionals(fallbackData);
-          setLoading(false);
-          return;
-        }
-
-        const data = await proService.getProfessionals();
-        if (data && data.length > 0) {
-          setProfessionals(data);
-        } else {
-          setProfessionals(fallbackData);
-        }
-      } catch (err) {
-        console.error('Failed to load professionals from Supabase:', err);
-        setError(err instanceof Error ? err : new Error('Unknown error'));
-        setProfessionals(fallbackData);
-      } finally {
+  async function loadPros() {
+    setLoading(true);
+    try {
+      if (!isSupabaseConfigured) {
+        setProfessionals([]);
         setLoading(false);
+        return;
       }
-    }
 
+      const data = await proService.getProfessionals();
+      setProfessionals(data || []);
+    } catch (err) {
+      console.error('Failed to load professionals from Supabase:', err);
+      setError(err instanceof Error ? err : new Error('Unknown error'));
+      setProfessionals([]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
     loadPros();
   }, []);
 
-  return { professionals, loading, error };
+  return { professionals, loading, error, refetch: loadPros };
 }

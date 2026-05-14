@@ -7,6 +7,7 @@ import {
   BookOpen, 
   User, 
   Plus, 
+  Edit2,
   MapPin, 
   Star, 
   CheckCircle2, 
@@ -271,8 +272,10 @@ type View = 'home' | 'explore' | 'events' | 'guides' | 'profile' | 'community' |
 interface Professional {
   id: string;
   name: string;
+  company_name?: string;
   category: string;
   rating: number;
+  reviews_count?: number;
   languages: string[];
   image: string;
   bio: string;
@@ -281,6 +284,7 @@ interface Professional {
   website?: string;
   instagram?: string;
   location?: string;
+  coordinates?: { lat: number; lng: number };
 }
 
 interface Event {
@@ -313,119 +317,13 @@ interface Classified {
 
 // --- Mock Data ---
 
-const MOCK_PROS: Professional[] = [
-  {
-    id: '1',
-    name: 'Carlos Rodriguez',
-    category: 'Plumber',
-    rating: 4.9,
-    languages: ['Spanish', 'English'],
-    image: 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=200&h=200',
-    bio: 'Certified plumber with 15 years of experience in both residential and industrial installations. Specialized in modern water systems and emergency leak control. Known for punctuality and clean work.',
-    phone: '+34 612 345 678',
-    email: 'carlos.plumbing@example.com',
-    location: 'Calle de la Paz, 4, 46003 Valencia'
-  },
-  {
-    id: '2',
-    name: 'Elena Martinez',
-    category: 'Lawyer',
-    rating: 5.0,
-    languages: ['Spanish', 'English', 'French'],
-    image: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&q=80&w=200&h=200',
-    bio: 'Specializing in immigration law and relocation services. I have helped over 500 expats obtain their NIE and TIE. My goal is to make your transition to Spain as smooth as possible through clear legal guidance.',
-    phone: '+34 698 765 432',
-    email: 'elena.law@example.com',
-    location: 'Plaça de l\'Ajuntament, 1, 46002 Valencia'
-  },
-  {
-    id: '3',
-    name: 'David Wilson',
-    category: 'Translator',
-    rating: 4.8,
-    languages: ['English', 'Spanish', 'German'],
-    image: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=200&h=200',
-    bio: 'Professional sworn translator for English and German. Fast turnaround for official documents, business proposals, and website localization. Member of the Valencia Translators Association.',
-    phone: '+34 654 321 098',
-    email: 'david.trans@example.com',
-    location: 'Carrer de la Guàrdia Civil, 22, 46020 Valencia'
-  },
-  {
-    id: '4',
-    name: 'Sophie Dubois',
-    category: 'Real Estate',
-    rating: 4.7,
-    languages: ['French', 'English', 'Spanish'],
-    image: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=200&h=200',
-    bio: 'Dedicated real estate agent focusing on the expat market. I find the best apartments before they even hit the main websites. I also provide full relocation support including school hunting for families.',
-    phone: '+34 677 888 999',
-    email: 'sophie.realty@example.com',
-    location: 'Carrer de Quart, 15, 46001 Valencia'
-  },
-  {
-    id: '5',
-    name: 'Marco Rossi',
-    category: 'Handyman',
-    rating: 4.9,
-    languages: ['Italian', 'Spanish', 'English'],
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=200&h=200',
-    bio: 'Professional handyman with a passion for fixing things. I can help with anything from furniture assembly to general home maintenance. Reliable, efficient, and always with a smile.',
-    location: 'Carrer del Dr. Manuel Candela, 45, 46021 Valencia'
-  },
-  {
-    id: '6',
-    name: 'Anna Schmidt',
-    category: 'Accountant',
-    rating: 4.9,
-    languages: ['German', 'English', 'Spanish'],
-    image: 'https://images.unsplash.com/photo-1567532939604-b6b5b0ad2f01?auto=format&fit=crop&q=80&w=200&h=200',
-    bio: 'Tax consultant with extensive knowledge of the Spanish legal system. I specialize in helping digital nomads and expats optimize their taxes and set up their businesses in Valencia.',
-    location: 'Gran Via de les Germanies, 12, 46006 Valencia'
-  },
-  {
-    id: '7',
-    name: 'Dr. Sarah Taylor',
-    category: 'Dentist',
-    rating: 4.9,
-    languages: ['English', 'Spanish'],
-    image: 'https://images.unsplash.com/photo-1559839734-2b71f1e59816?auto=format&fit=crop&q=80&w=200&h=200',
-    bio: 'International dentist specializing in cosmetic dentistry and preventive care. Providing high-quality care in a modern, expat-friendly environment.',
-    location: 'Gran Via, Valencia'
-  },
-  {
-    id: '8',
-    name: 'Lucas Dupont',
-    category: 'Electrician',
-    rating: 4.8,
-    languages: ['French', 'Spanish', 'English'],
-    image: 'https://images.unsplash.com/photo-1590650046871-92c887180603?auto=format&fit=crop&q=80&w=200&h=200',
-    bio: 'Certified electrician for all your home power needs. From fixing sockets to complete rewiring projects and smart home installations.',
-    location: 'Cabanyal, Valencia'
-  }
-];
+const MOCK_PROS: Professional[] = [];
 
-const MOCK_EVENTS: Event[] = [
-  {
-    id: '1',
-    title: 'International Networking Valencia',
-    date: 'Mar 15',
-    time: '19:00',
-    location: 'Ruzafa Hub',
-    category: 'Networking',
-    image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80&w=400&h=200',
-    attendees: 45
-  },
-  {
-    id: '2',
-    title: 'Paella Cooking Class',
-    date: 'Mar 18',
-    time: '11:00',
-    location: 'Central Market',
-    category: 'Cultural',
-    image: 'https://images.unsplash.com/photo-1534080564607-317f53f89998?auto=format&fit=crop&q=80&w=400&h=200',
-    attendees: 12
-  }
-];
+const MOCK_EVENTS: Event[] = [];
+
+const MOCK_FEED: any[] = [];
+
+const MOCK_CLASSIFIEDS: Classified[] = [];
 
 interface GuideArticle {
   id: string;
@@ -602,93 +500,10 @@ const MOCK_GUIDE_CATEGORIES: GuideCategory[] = [
 ];
 
 const MOCK_GUIDE: GuideStep[] = [
-  { id: '1', title: 'Get your NIE', description: 'The essential ID number for living in Spain.', pros: ['2'] },
-  { id: '2', title: 'Open a Bank Account', description: 'Necessary for utilities and rent.', pros: ['2'] },
+  { id: '1', title: 'Get your NIE', description: 'The essential ID number for living in Spain.', pros: [] },
+  { id: '2', title: 'Open a Bank Account', description: 'Necessary for utilities and rent.', pros: [] },
   { id: '3', title: 'Empadronamiento', description: 'Registering at the town hall.', pros: [] },
-  { id: '4', title: 'Health Insurance', description: 'Private or public health coverage.', pros: ['2'] }
-];
-
-const MOCK_FEED = [
-  {
-    id: '1',
-    user: 'Sarah J.',
-    content: 'Just used Elena Martinez for my NIE. She was amazing! Highly recommend if you are struggling with the appointments.',
-    proId: '2',
-    likes: 12,
-    comments: 3,
-    time: '2h ago'
-  },
-  {
-    id: '2',
-    user: 'Marc L.',
-    content: 'Does anyone know a good gym in Ruzafa that is international friendly?',
-    likes: 5,
-    comments: 8,
-    time: '5h ago'
-  },
-  {
-    id: '3',
-    user: 'Julian R.',
-    content: 'The new bakery on Calle de la Paz is incredible. Best croissants in Valencia!',
-    likes: 24,
-    comments: 5,
-    time: '1h ago'
-  },
-  {
-    id: '4',
-    user: 'Emma W.',
-    content: 'Looking for a Spanish tutor for intensive classes. Any recommendations?',
-    likes: 8,
-    comments: 12,
-    time: '3h ago'
-  },
-  {
-    id: '5',
-    user: 'Thomas B.',
-    content: 'Valencia is so beautiful in the spring. Love the Turia park right now!',
-    likes: 45,
-    comments: 2,
-    time: '30m ago'
-  }
-];
-
-const MOCK_CLASSIFIEDS: Classified[] = [
-  { 
-    id: '1', 
-    title: 'Vintage Bicycle', 
-    price: '€80', 
-    category: 'For Sale', 
-    condition: 'Good',
-    location: 'Ruzafa',
-    image: 'https://images.unsplash.com/photo-1485965120184-e220f721d03e?auto=format&fit=crop&q=80&w=200&h=200' 
-  },
-  { 
-    id: '2', 
-    title: 'Room in Ruzafa', 
-    price: '€450/mo', 
-    category: 'Housing', 
-    condition: 'N/A',
-    location: 'Ruzafa',
-    image: 'https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?auto=format&fit=crop&q=80&w=200&h=200' 
-  },
-  { 
-    id: '3', 
-    title: 'Office Chair', 
-    price: '€15', 
-    category: 'For Sale', 
-    condition: 'Like New',
-    location: 'El Carmen',
-    image: 'https://images.unsplash.com/photo-1592078615290-033ee584e267?auto=format&fit=crop&q=80&w=200&h=200' 
-  },
-  { 
-    id: '4', 
-    title: 'Yoga Classes', 
-    price: '€10/h', 
-    category: 'Services', 
-    condition: 'N/A',
-    location: 'Turia Park',
-    image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?auto=format&fit=crop&q=80&w=200&h=200' 
-  },
+  { id: '4', title: 'Health Insurance', description: 'Private or public health coverage.', pros: [] }
 ];
 
 // --- Components ---
@@ -696,6 +511,7 @@ const MOCK_CLASSIFIEDS: Classified[] = [
 export default function App() {
   const [isStarting, setIsStarting] = useState(true);
   const mainRef = useRef<HTMLElement>(null);
+  const { professionals: allPros, loading: prosLoading, refetch: refetchPros } = useProfessionals([]);
   const [activeView, setActiveView] = useState<View>('home');
   const [initialEventId, setInitialEventId] = useState<string | null>(null);
   const [initialProId, setInitialProId] = useState<string | null>(null);
@@ -807,10 +623,8 @@ export default function App() {
   const [proEmail, setProEmail] = useState('');
   const [proPhone, setProPhone] = useState('');
   const [proRecommendation, setProRecommendation] = useState('');
-  const [proImageFile, setProImageFile] = useState<File | null>(null);
-  const [proImagePreview, setProImagePreview] = useState<string | null>(null);
+  const [recommendationSent, setRecommendationSent] = useState(false);
   const [isSubmittingPro, setIsSubmittingPro] = useState(false);
-  const [isUploadingProImage, setIsUploadingProImage] = useState(false);
   const [proError, setProError] = useState<string | null>(null);
 
   // Form states for Ad
@@ -827,7 +641,6 @@ export default function App() {
   const [adSize, setAdSize] = useState('M');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const recommendationFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchAds();
@@ -842,15 +655,6 @@ export default function App() {
     }
   };
 
-  const handleProFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      setProImageFile(file);
-      const url = URL.createObjectURL(file);
-      setProImagePreview(url);
-    }
-  };
-
   const handlePostPro = async () => {
     if ((!proName && !proCompany) || !proCategory || (!proEmail.trim() && !proPhone.trim())) return;
     
@@ -858,23 +662,6 @@ export default function App() {
     setProError(null);
     
     try {
-      let proImageUrl = '';
-      if (proImageFile) {
-        setIsUploadingProImage(true);
-        try {
-          const sanitizedName = proImageFile.name
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-zA-Z0-9.-]/g, '_')
-            .replace(/_{2,}/g, '_');
-            
-          const path = `images_pro/${Date.now()}_${sanitizedName}`;
-          proImageUrl = await storageService.uploadFile('images', path, proImageFile);
-        } finally {
-          setIsUploadingProImage(false);
-        }
-      }
-
       await proService.submitRecommendation({
         user_email: "vincentdurroux@gmail.com",
         pro_name: proName,
@@ -882,7 +669,6 @@ export default function App() {
         pro_category: proCategory,
         pro_email: proEmail,
         pro_phone: proPhone,
-        pro_image_url: proImageUrl,
         notes: proRecommendation
       });
       
@@ -893,11 +679,15 @@ export default function App() {
       setProEmail('');
       setProPhone('');
       setProRecommendation('');
-      setProImageFile(null);
-      setProImagePreview(null);
-      setShowAddPro(false);
+      setRecommendationSent(true);
       
-      alert('Thank you for your recommendation! Our team will review it.');
+      // Auto close after 5 seconds
+      setTimeout(() => {
+        if (showAddPro) {
+          setShowAddPro(false);
+          setRecommendationSent(false);
+        }
+      }, 5000);
     } catch (error) {
       console.error('Error submitting pro recommendation:', error);
       setProError('Failed to send recommendation. Please try again.');
@@ -1193,6 +983,7 @@ export default function App() {
               {activeView === 'home' && (
                 <HomeView 
                   key="home" 
+                  allPros={allPros}
                   onNavigate={(view, params) => {
                     if (params?.eventId) setInitialEventId(params.eventId);
                     if (params?.proId) setInitialProId(params.proId);
@@ -1208,6 +999,7 @@ export default function App() {
               )}
               {activeView === 'explore' && (
                 <ExploreView 
+                  allPros={allPros}
                   onNavigate={navigateTo} 
                   initialProId={initialProId}
                   onModalClose={() => setInitialProId(null)}
@@ -1240,6 +1032,7 @@ export default function App() {
               {activeView === 'admin' && (
                 <AdminView 
                   key="admin" 
+                  onRefetchPros={refetchPros}
                   scrollToTop={scrollToTop}
                 />
               )}
@@ -1303,38 +1096,32 @@ export default function App() {
                     </div>
                   )}
 
-                  <div className="space-y-5">
-                    {/* Profile Photo Section */}
-                    <div className="flex flex-col items-center justify-center p-4 bg-slate-50 border border-dashed border-slate-200 rounded-2xl gap-3">
-                      <div className="relative group">
-                        <div className="w-20 h-20 rounded-full bg-white border-2 border-white shadow-md overflow-hidden flex items-center justify-center">
-                          {proImagePreview ? (
-                            <img src={proImagePreview} alt="Preview" className="w-full h-full object-cover" />
-                          ) : (
-                            <Camera className="w-6 h-6 text-slate-300" />
-                          )}
-                        </div>
-                        <button 
-                          type="button"
-                          onClick={() => recommendationFileInputRef.current?.click()}
-                          className="absolute -bottom-1 -right-1 p-1.5 bg-brand-yellow text-white rounded-full shadow-md hover:scale-105 transition-all"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
+                  {recommendationSent ? (
+                    <div className="flex flex-col items-center justify-center py-8 px-4 text-center space-y-6">
+                      <div className="w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center">
+                        <CheckCircle2 className="w-10 h-10 text-emerald-500" />
                       </div>
-                      <div className="text-center">
-                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Profile Photo (Optional)</p>
+                      <div className="space-y-2">
+                        <h3 className="text-2xl font-bold text-slate-900 font-display">Thank You!</h3>
+                        <p className="text-slate-500 leading-relaxed font-medium">
+                          Your recommendation has been received. 
+                          Our team will review it shortly to help grow our curated community.
+                        </p>
                       </div>
-                      <input 
-                        type="file"
-                        ref={recommendationFileInputRef}
-                        onChange={handleProFileChange}
-                        accept="image/*"
-                        className="hidden"
-                      />
+                      <button 
+                        onClick={() => {
+                          setShowAddPro(false);
+                          setRecommendationSent(false);
+                        }}
+                        className="w-full py-4 bg-brand-blue text-white rounded-2xl font-bold uppercase tracking-widest hover:bg-brand-navy transition-all shadow-lg shadow-brand-blue/20"
+                      >
+                        Great, thanks!
+                      </button>
                     </div>
-
-                    {/* Basic Info Section */}
+                  ) : (
+                    <>
+                      <div className="space-y-5">
+                        {/* Basic Info Section */}
                     <div className="space-y-3">
                       <div className="flex items-center gap-2 px-1">
                         <p className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">Professional Identity</p>
@@ -1431,6 +1218,8 @@ export default function App() {
                     <Shield className="w-3 h-3" />
                     Verified Community Content
                   </div>
+                    </>
+                  )}
                 </div>
               </motion.div>
             </div>
@@ -2245,7 +2034,7 @@ function RecommendationItem({ rec, onUpdate, onStartAdding }: { rec: any, onUpda
             ) : (
               <button 
                 disabled={isUpdating}
-                onClick={() => handleUpdateStatus('validated')}
+                onClick={() => onStartAdding(rec)}
                 className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 hover:bg-emerald-50 hover:text-emerald-500 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50"
               >
                 <CheckCircle2 className="w-3.5 h-3.5" /> Start adding pro
@@ -2258,14 +2047,6 @@ function RecommendationItem({ rec, onUpdate, onStartAdding }: { rec: any, onUpda
                 className="flex items-center gap-2 px-4 py-2 bg-slate-100 text-slate-500 hover:bg-red-50 hover:text-red-500 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all disabled:opacity-50"
               >
                 <X className="w-3.5 h-3.5" /> Refuse
-              </button>
-            )}
-            {rec.status === 'validated' && (
-              <button 
-                onClick={() => onStartAdding(rec)}
-                className="flex items-center gap-2 px-4 py-2 bg-brand-blue text-white rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-brand-blue/20 hover:scale-105 active:scale-95 transition-all"
-              >
-                <UserPlus className="w-3.5 h-3.5" /> Fill Professional Profile
               </button>
             )}
             {rec.status !== 'pending' && (
@@ -2311,17 +2092,37 @@ function RecommendationItem({ rec, onUpdate, onStartAdding }: { rec: any, onUpda
   );
 }
 
-function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
+function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, onRefetchPros?: () => Promise<void> }) {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'recommendations' | 'add_pro'>('recommendations');
+  const [activeTab, setActiveTab] = useState<'recommendations' | 'add_pro' | 'completed' | 'refused'>('recommendations');
+  const [activeRecId, setActiveRecId] = useState<string | null>(null);
+  const [editingProId, setEditingProId] = useState<string | null>(null);
+  const [completedPros, setCompletedPros] = useState<Professional[]>([]);
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const fetchCompletedPros = async () => {
+    try {
+      const data = await proService.getProfessionals();
+      setCompletedPros(data);
+    } catch (error) {
+      console.error('Error fetching completed pros:', error);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'completed') {
+      fetchCompletedPros();
+    }
+  }, [activeTab]);
 
   // Form state for adding pro
   const [newPro, setNewPro] = useState({
     name: '',
     company_name: '',
     category: '',
-    rating: 0,
+    rating: 5,
+    reviews_count: 0,
     languages: [] as string[],
     image: '',
     bio: '',
@@ -2329,7 +2130,9 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
     email: '',
     website: '',
     instagram: '',
-    location: ''
+    location: '',
+    lat: 0,
+    lng: 0
   });
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -2365,6 +2168,7 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
   };
 
   const handleStartAdding = (rec: any) => {
+    setActiveRecId(rec.id);
     setNewPro({
       ...newPro,
       name: rec.pro_name || '',
@@ -2381,8 +2185,37 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
     scrollToTop?.();
   };
 
+  const handleStartEditing = (pro: Professional) => {
+    console.log('[handleStartEditing] Editing pro:', pro);
+    setEditingProId(pro.id);
+    setActiveRecId(null);
+    setNewPro({
+      name: pro.name || '',
+      company_name: pro.company_name || '',
+      category: pro.category || '',
+      rating: pro.rating || 5,
+      reviews_count: pro.reviews_count || 0,
+      languages: pro.languages || [],
+      image: pro.image || '',
+      bio: pro.bio || '',
+      phone: pro.phone || '',
+      email: pro.email || '',
+      website: pro.website || '',
+      instagram: pro.instagram || '',
+      location: pro.location || '',
+      lat: pro.coordinates?.lat || 0,
+      lng: pro.coordinates?.lng || 0
+    });
+    setPreviewUrl(pro.image || null);
+    setActiveTab('add_pro');
+    scrollToTop?.();
+  };
+
   const handleAddPro = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Use a simpler confirmation or just proceed if the user is an admin
+    // For now, let's just proceed to verify the update works
     setIsSubmitting(true);
     setMsg(null);
 
@@ -2401,31 +2234,91 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
         imageUrl = await storageService.uploadFile('images', path, selectedFile);
       }
 
-      if (!imageUrl) {
-        imageUrl = 'https://images.unsplash.com/photo-1560250097-0b93528c311a?auto=format&fit=crop&q=80&w=256';
+      // Geocoding fallback
+      let finalLat = newPro.lat;
+      let finalLng = newPro.lng;
+
+      console.log('[handleAddPro] Initial coordinates:', finalLat, finalLng, 'Location:', newPro.location);
+
+      if ((finalLat === 0 || finalLng === 0) && newPro.location) {
+        console.log('[handleAddPro] Attempting geocoding fallback for:', newPro.location);
+        try {
+          const geocoder = new google.maps.Geocoder();
+          const result = await new Promise<google.maps.GeocoderResult[]>((resolve, reject) => {
+            geocoder.geocode({ address: newPro.location }, (results, status) => {
+              if (status === 'OK' && results && results.length > 0) resolve(results);
+              else reject(status);
+            });
+          });
+          finalLat = result[0].geometry.location.lat();
+          finalLng = result[0].geometry.location.lng();
+          console.log('[handleAddPro] Geocoding success. New coordinates:', finalLat, finalLng);
+        } catch (e) {
+          console.error('[handleAddPro] Geocoding fallback failed for address:', newPro.location, 'Error:', e);
+        }
       }
 
       const formattedPro = {
         name: newPro.name,
         company_name: newPro.company_name,
         profession: newPro.category,
-        rating: newPro.rating,
+        rating: newPro.rating || 4.8,
+        reviews_count: newPro.reviews_count || 0,
         languages: newPro.languages,
         image_url: imageUrl,
+        image: imageUrl, // Add both for safety
         description: newPro.bio,
+        bio: newPro.bio, // Add both for safety
         phone: newPro.phone,
         email: newPro.email,
         website: newPro.website,
         instagram: newPro.instagram,
-        location: newPro.location
+        location: newPro.location,
+        lat: finalLat,
+        lng: finalLng
       };
-      await proService.createProfessional(formattedPro);
-      setMsg({ type: 'success', text: 'Professional added successfully!' });
+
+      console.log('[handleAddPro] Final payload to service:', {
+        ...formattedPro,
+        description: typeof formattedPro.description === 'string' ? formattedPro.description.substring(0, 30) + '...' : ''
+      });
+
+      if (editingProId) {
+        console.log('[handleAddPro] Calling updateProfessional for ID:', editingProId, 'Image:', imageUrl);
+        const result = await proService.updateProfessional(editingProId, formattedPro);
+        console.log('[handleAddPro] Update result:', result);
+        
+        if (result && result.success === false) {
+           setMsg({ type: 'error', text: result.message || 'Failed to update professional. Record not found.' });
+           return;
+        }
+        
+        setMsg({ type: 'success', text: 'Professional updated successfully!' });
+      } else {
+        console.log('[handleAddPro] Creating new professional');
+        await proService.createProfessional(formattedPro);
+        
+        // Update recommendation status if this came from a recommendation
+        if (activeRecId) {
+          await proService.updateRecommendationStatus(activeRecId, 'validated');
+          await fetchRecommendations(); // Refresh the list
+        }
+        setMsg({ type: 'success', text: 'Professional added successfully!' });
+      }
+
+      if (onRefetchPros) {
+        await onRefetchPros(); // Refresh the main search results
+      }
+      await fetchCompletedPros(); // Refresh the admin list
+      setActiveRecId(null);
+      setEditingProId(null);
+      setActiveTab('completed');
       setNewPro({
         name: '',
         company_name: '',
         category: '',
-        rating: 0,
+        rating: 5,
+        reviews_count: 0,
         languages: [],
         image: '',
         bio: '',
@@ -2433,13 +2326,17 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
         email: '',
         website: '',
         instagram: '',
-        location: ''
+        location: '',
+        lat: 0,
+        lng: 0
       });
       setSelectedFile(null);
       setPreviewUrl(null);
     } catch (err) {
       console.error(err);
-      setMsg({ type: 'error', text: 'Failed to add professional.' });
+      const action = editingProId ? 'update' : 'add';
+      const errorMessage = err instanceof Error ? err.message : String(err);
+      setMsg({ type: 'error', text: `Failed to ${action} professional: ${errorMessage}` });
     } finally {
       setIsSubmitting(false);
     }
@@ -2472,7 +2369,11 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
             Recommendations
           </button>
           <button 
-            onClick={() => setActiveTab('add_pro')}
+            onClick={() => {
+              setActiveTab('add_pro');
+              setActiveRecId(null);
+              setEditingProId(null);
+            }}
             className={cn(
               "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
               activeTab === 'add_pro' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
@@ -2480,8 +2381,44 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
           >
             Add Pro
           </button>
+          <button 
+            onClick={() => {
+              setActiveTab('completed');
+              setActiveRecId(null);
+              setEditingProId(null);
+            }}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
+              activeTab === 'completed' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Completed
+          </button>
+          <button 
+            onClick={() => {
+              setActiveTab('refused');
+              setActiveRecId(null);
+              setEditingProId(null);
+            }}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
+              activeTab === 'refused' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            Refused
+          </button>
         </div>
       </div>
+
+      {msg && (
+        <div className={cn(
+          "mb-6 p-4 rounded-2xl flex items-center gap-3",
+          msg.type === 'success' ? "bg-emerald-50 text-emerald-600 border border-emerald-100" : "bg-rose-50 text-rose-600 border border-rose-100"
+        )}>
+          {msg.type === 'success' ? <CheckCircle2 className="w-5 h-5" /> : <AlertCircle className="w-5 h-5" />}
+          <p className="text-sm font-bold tracking-tight">{msg.text}</p>
+        </div>
+      )}
 
       {activeTab === 'recommendations' ? (
         <div className="space-y-4">
@@ -2489,32 +2426,48 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
             <div className="flex justify-center py-12">
               <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : recommendations.length === 0 ? (
+          ) : recommendations.filter(r => r.status === 'pending' || !r.status).length === 0 ? (
             <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
-              <p className="text-slate-400 font-medium">No recommendations yet.</p>
+              <p className="text-slate-400 font-medium">No pending recommendations.</p>
             </div>
           ) : (
-            recommendations.map((rec) => (
-              <RecommendationItem 
-                key={rec.id} 
-                rec={rec} 
-                onUpdate={fetchRecommendations} 
-                onStartAdding={handleStartAdding}
-              />
-            ))
+            recommendations
+              .filter(r => r.status === 'pending' || !r.status)
+              .map((rec) => (
+                <RecommendationItem 
+                  key={rec.id} 
+                  rec={rec} 
+                  onUpdate={fetchRecommendations} 
+                  onStartAdding={handleStartAdding}
+                />
+              ))
         )}
       </div>
-      ) : (
-        <form onSubmit={handleAddPro} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl space-y-8">
-          {msg && (
-            <div className={cn(
-              "p-4 rounded-2xl font-semibold text-sm border font-display",
-              msg.type === 'success' ? "bg-green-50 text-green-600 border-green-100" : "bg-red-50 text-red-600 border-red-100"
-            )}>
-              {msg.text}
+      ) : activeTab === 'refused' ? (
+        <div className="space-y-4">
+          {loading ? (
+            <div className="flex justify-center py-12">
+              <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
             </div>
+          ) : recommendations.filter(r => r.status === 'refused').length === 0 ? (
+            <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
+              <p className="text-slate-400 font-medium">No refused recommendations.</p>
+            </div>
+          ) : (
+            recommendations
+              .filter(r => r.status === 'refused')
+              .map((rec) => (
+                <RecommendationItem 
+                  key={rec.id} 
+                  rec={rec} 
+                  onUpdate={fetchRecommendations} 
+                  onStartAdding={handleStartAdding}
+                />
+              ))
           )}
-
+        </div>
+      ) : activeTab === 'add_pro' ? (
+        <form onSubmit={handleAddPro} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl space-y-8">
           <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-[32px] border border-dashed border-slate-200 gap-4 mb-8">
             <div className="relative group">
               <div className="w-32 h-32 rounded-full bg-white border-4 border-white shadow-xl overflow-hidden flex items-center justify-center">
@@ -2602,9 +2555,22 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
               <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Location Address</label>
               <AddressAutocomplete 
                 value={newPro.location}
-                onChange={val => setNewPro({...newPro, location: val})}
-                onSelect={(location) => setNewPro({...newPro, location})}
+                onChange={val => setNewPro({...newPro, location: val, lat: 0, lng: 0})}
+                onSelect={(location, lat, lng) => {
+      console.log('Address selected:', location, lat, lng);
+      setNewPro({...newPro, location, lat, lng});
+    }}
               />
+              {newPro.lat !== 0 && newPro.lng !== 0 ? (
+                <p className="text-[10px] text-emerald-500 font-medium px-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" />
+                  Coordinates captured: {newPro.lat.toFixed(4)}, {newPro.lng.toFixed(4)}
+                </p>
+              ) : newPro.location.length > 5 ? (
+                <p className="text-[10px] text-amber-500 font-medium px-1">
+                  ⚠️ Please select from the dropdown to capture map coordinates
+                </p>
+              ) : null}
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Website</label>
@@ -2659,12 +2625,64 @@ function AdminView({ scrollToTop }: { scrollToTop?: () => void }) {
               <Loader2 className="w-5 h-5 animate-spin" />
             ) : (
               <>
-                <Plus className="w-4 h-4" />
-                Add Professional to App
+                {editingProId ? <Edit2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                {editingProId ? 'Update Professional' : 'Add Professional to App'}
               </>
             )}
           </button>
         </form>
+      ) : (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xl font-bold text-slate-900 font-display">Active Professionals</h3>
+            <button 
+              onClick={() => setActiveTab('add_pro')}
+              className="text-xs font-bold text-brand-blue hover:underline"
+            >
+              + Add another
+            </button>
+          </div>
+          <div className="grid gap-4">
+            {completedPros.length > 0 ? (
+              completedPros.map((pro) => (
+                <div key={pro.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <img src={pro.image} alt="" className="w-12 h-12 rounded-full object-cover" />
+                    <div>
+                      <h4 className="font-bold text-slate-900">{pro.name}</h4>
+                      <p className="text-xs text-slate-500">{pro.category}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                     <button 
+                       onClick={() => handleStartEditing(pro)}
+                       className="p-2 bg-slate-50 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all"
+                       title="Edit Profile"
+                     >
+                       <Edit2 className="w-4 h-4" />
+                     </button>
+                     {pro.coordinates ? (
+                       <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-bold uppercase tracking-wider" title={`Lat: ${pro.coordinates.lat}, Lng: ${pro.coordinates.lng}`}>
+                         On Map
+                       </span>
+                     ) : (
+                       <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                         No Coordinates
+                       </span>
+                     )}
+                     <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                       Live
+                     </span>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                <p className="text-slate-400 text-sm font-medium">No professionals added yet.</p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </motion.div>
   );
@@ -2849,7 +2867,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
   );
 }
 
-function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string }) => void, onAddPro: () => void, ads: Ad[], onSelectAd: (ad: Ad) => void, onSelectPost: (post: any) => void, scrollToTop?: () => void }) {
+function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string }) => void, allPros: Professional[], onAddPro: () => void, ads: Ad[], onSelectAd: (ad: Ad) => void, onSelectPost: (post: any) => void, scrollToTop?: () => void }) {
   const feedRef = useRef<HTMLDivElement>(null);
   
   return (
@@ -2936,7 +2954,7 @@ function HomeView({ onNavigate, onAddPro, ads, onSelectAd, onSelectPost, scrollT
           </div>
           
           <div className="relative group flex-1 flex flex-col min-h-[250px]">
-            <HighlightCarousel onNavigate={onNavigate} />
+            <HighlightCarousel onNavigate={onNavigate} allPros={allPros} />
           </div>
         </div>
 
@@ -3044,7 +3062,9 @@ function ExpertGuideModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
             <div className="max-w-2xl mx-auto space-y-10">
               {/* Partner Intro */}
               <div className="flex items-center gap-4 py-6 border-b border-slate-100 mb-8">
-                <img src="https://i.pravatar.cc/150?u=marina" alt="Marina" className="w-12 h-12 rounded-full border-2 border-brand-yellow/20" />
+                <div className="w-12 h-12 rounded-full border-2 border-brand-yellow/20 flex items-center justify-center bg-slate-50">
+                  <User className="w-6 h-6 text-slate-300" />
+                </div>
                 <div>
                   <p className="text-xs text-slate-400 font-bold uppercase tracking-widest">Article by Marina Sanchis</p>
                   <p className="text-sm font-bold text-slate-800">Engel & Völkers Valencia Real Estate Specialist</p>
@@ -3146,9 +3166,9 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
     title: "How to choose the best neighborhood in Valencia",
     partner: "Engel & Völkers Valencia",
     author: "Marina Sanchis",
-    avatar: "https://i.pravatar.cc/150?u=marina",
+    avatar: null,
     excerpt: "From the bohemian streets of Ruzafa to the family-friendly avenues of Algiros, every district tells a different story. Discover which one matches your lifestyle and investment goals.",
-    brandImage: "/valencia.jpg",
+    brandImage: null,
     contact: {
       phone: "+34 963 51 02 00",
       email: "valencia@engelvoelkers.com"
@@ -3160,8 +3180,12 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
       <div className="bg-white border border-slate-100 rounded-[32px] overflow-hidden shadow-sm hover:shadow-md transition-all group flex-1 flex flex-col">
         <div className="flex flex-col md:flex-row flex-1">
           {/* Visual Side */}
-          <div className="md:w-1/3 h-48 md:h-auto relative overflow-hidden">
-            <img src={featuredGuide.brandImage} alt="Valencia neighborhoods" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+          <div className="md:w-1/3 h-48 md:h-auto relative overflow-hidden bg-brand-blue/5 flex items-center justify-center">
+            {featuredGuide.brandImage ? (
+              <img src={featuredGuide.brandImage} alt="Valencia neighborhoods" className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
+            ) : (
+              <MapPin className="w-12 h-12 text-brand-blue/10" />
+            )}
             <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent md:bg-gradient-to-r" />
             <div className="absolute top-4 left-4 bg-brand-yellow text-white text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md shadow-lg">
               Featured Expert
@@ -3172,8 +3196,12 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
           <div className="md:w-2/3 p-6 md:p-8 flex flex-col justify-between">
             <div>
               <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-brand-yellow/20">
-                  <img src={featuredGuide.avatar} alt={featuredGuide.author} className="w-full h-full object-cover" />
+                <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-brand-yellow/20 flex items-center justify-center bg-slate-50">
+                  {featuredGuide.avatar ? (
+                    <img src={featuredGuide.avatar} alt={featuredGuide.author} className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-5 h-5 text-slate-300" />
+                  )}
                 </div>
                 <div>
                   <h4 className="font-bold text-slate-800 text-sm leading-none">{featuredGuide.partner}</h4>
@@ -3220,41 +3248,25 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
   );
 }
 
-function HighlightCarousel({ onNavigate }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string }) => void }) {
+function HighlightCarousel({ onNavigate, allPros }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string }) => void, allPros: Professional[] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
-  const { professionals: allPros } = useProfessionals(MOCK_PROS);
-  const featuredPro = allPros[1] || MOCK_PROS[1];
-  const totalSlides = 3;
+  const featuredPro = allPros.length > 0 ? allPros[0] : null;
+
+  const slidesRaw = [
+    featuredPro ? {
+      type: 'pro',
+      pro: featuredPro,
+      action: () => onNavigate('explore', { proId: featuredPro.id })
+    } : null
+  ];
+
+  const slides = slidesRaw.filter(Boolean) as any[];
+  const totalSlides = slides.length;
 
   const nextSlide = () => setCurrentIndex((prev) => (prev + 1) % totalSlides);
   const prevSlide = () => setCurrentIndex((prev) => (prev - 1 + totalSlides) % totalSlides);
 
-  const slides = [
-    {
-      type: 'event',
-      id: '1',
-      title: 'Valencia Expat Connect',
-      location: 'Marina Beach Club',
-      tag: 'EVENT',
-      image: 'https://images.unsplash.com/photo-1511795409834-ef04bbd61622?auto=format&fit=crop&q=80&w=600',
-      date: { day: 'FRI', num: '24' },
-      action: () => onNavigate('events', { eventId: '1' })
-    },
-    {
-      type: 'pro',
-      pro: featuredPro,
-      action: () => onNavigate('explore', { proId: featuredPro.id })
-    },
-    {
-      type: 'tip',
-      id: 'pw-1',
-      title: 'The Ultimate NIE Guide 2024',
-      excerpt: 'Avoid the administrative headache with our updated 2024 guide for Valencia residents.',
-      tag: 'TIPS',
-      readTime: '4 min read',
-      action: () => onNavigate('guides', { guideId: 'pw-1' })
-    }
-  ];
+  if (totalSlides === 0) return null;
 
   return (
     <div className="relative overflow-hidden rounded-[32px] no-swipe flex-1 flex flex-col">
@@ -3309,8 +3321,12 @@ function HighlightCarousel({ onNavigate }: { onNavigate: (view: View, params?: {
                   <Trophy className="w-4 h-4" />
                 </div>
                 <p className="text-[10px] font-black text-brand-blue uppercase tracking-widest mb-2">Pro of the week</p>
-                <div className="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white shadow-xl mb-3">
-                  <img src={slide.pro.image} alt="" className="w-full h-full object-cover" />
+                <div className="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white shadow-xl mb-3 flex items-center justify-center bg-white/50">
+                  {slide.pro.image ? (
+                    <img src={slide.pro.image} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-10 h-10 text-brand-blue/30" />
+                  )}
                 </div>
                 <div className="space-y-1">
                   <h4 className="font-bold text-base text-slate-900">{slide.pro.name}</h4>
@@ -3419,13 +3435,34 @@ function ProMap({ pros, onSelectPro, center }: { pros: Professional[], onSelectP
           scrollwheel={true}
           internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
         >
+          {pros.map((pro, index) => pro.coordinates && (
+            <AdvancedMarker
+              key={pro.id}
+              position={pro.coordinates}
+              onClick={() => onSelectPro(pro)}
+              title={pro.name}
+            >
+              <div className="relative group/pin">
+                <Pin 
+                  background={'#0038FF'} 
+                  borderColor={'#fff'} 
+                  glyphColor={'#fff'}
+                  glyph={(index + 1).toString()}
+                />
+                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-white rounded-lg shadow-xl border border-slate-100 whitespace-nowrap opacity-0 group-hover/pin:opacity-100 transition-opacity pointer-events-none z-50">
+                  <p className="text-[10px] font-bold text-brand-navy">{pro.name}</p>
+                  <p className="text-[8px] text-slate-400 font-medium">Click to see details</p>
+                </div>
+              </div>
+            </AdvancedMarker>
+          ))}
         </Map>
       </APIProvider>
     </div>
   );
 }
 
-function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { onNavigate: (view: View) => void, initialProId?: string | null, onModalClose?: () => void, scrollToTop?: () => void }) {
+function ExploreView({ allPros, onNavigate, initialProId, onModalClose, scrollToTop }: { allPros: Professional[], onNavigate: (view: View) => void, initialProId?: string | null, onModalClose?: () => void, scrollToTop?: () => void }) {
   const [search, setSearch] = useState('');
   const [deferredSearch, setDeferredSearch] = useState('');
   const [isSearching, setIsSearching] = useState(false);
@@ -3446,8 +3483,6 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
   const [selectedLanguage, setSelectedLanguage] = useState('All');
   const [minRating, setMinRating] = useState(0);
   const [selectedPro, setSelectedPro] = useState<Professional | null>(null);
-
-  const { professionals: allPros } = useProfessionals(MOCK_PROS);
 
   const allProfessions = useMemo(() => {
     return Array.from(new Set(allPros.map(p => p.category))).sort();
@@ -3543,7 +3578,7 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
 
         return matchesCategory && matchesLanguage && matchesSearch && matchesDistance && matchesRating;
       })
-    : allPros.slice(0, 4);
+    : allPros;
 
   return (
     <motion.div 
@@ -3593,7 +3628,7 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
                         p.name.toLowerCase().includes(search.toLowerCase()) || 
                         p.category.toLowerCase().includes(search.toLowerCase())
                       ).slice(0, 6).length > 0 ? (
-                        MOCK_PROS.filter(p => 
+                        allPros.filter(p => 
                           p.name.toLowerCase().includes(search.toLowerCase()) || 
                           p.category.toLowerCase().includes(search.toLowerCase())
                         ).slice(0, 6).map((pro) => (
@@ -3606,7 +3641,13 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
                             }}
                             className="w-full p-4 hover:bg-slate-50 transition-colors flex items-center gap-4 border-b border-slate-50 last:border-0 group/item"
                           >
-                            <img src={pro.image} alt={pro.name} className="w-12 h-12 rounded-xl object-cover shadow-sm" />
+                          <div className="w-12 h-12 rounded-xl bg-slate-50 flex items-center justify-center overflow-hidden flex-shrink-0 border border-slate-100/50">
+                            {pro.image ? (
+                              <img src={pro.image} alt={pro.name} className="w-full h-full object-cover shadow-sm" />
+                            ) : (
+                              <User className="w-6 h-6 text-slate-200" />
+                            )}
+                          </div>
                             <div className="text-left">
                               <h4 className="font-bold text-slate-900 group-hover/item:text-brand-blue transition-colors">{pro.name}</h4>
                               <p className="text-xs text-slate-400">{pro.category} • {pro.location}</p>
@@ -3782,8 +3823,12 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
 
                   <div className="absolute top-0 right-0 w-32 h-32 bg-slate-50/50 rounded-full -mr-16 -mt-16 group-hover:bg-brand-blue/5 transition-colors duration-500" />
                   
-                  <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-2xl bg-slate-50 overflow-hidden flex-shrink-0 border border-slate-100 shadow-sm group-hover:scale-105 transition-transform duration-700">
-                    <img src={pro.image} alt={pro.name} className="w-full h-full object-cover" />
+                  <div className="relative w-24 h-24 sm:w-32 sm:h-32 rounded-2xl bg-slate-50 overflow-hidden flex-shrink-0 border border-slate-100 shadow-sm group-hover:scale-105 transition-transform duration-700 flex items-center justify-center">
+                    {pro.image ? (
+                      <img src={pro.image} alt={pro.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <User className="w-1/2 h-1/2 text-slate-200" />
+                    )}
                   </div>
   
                   <div className="relative flex-1 flex flex-col justify-between min-w-0 py-1">
@@ -3795,7 +3840,9 @@ function ExploreView({ onNavigate, initialProId, onModalClose, scrollToTop }: { 
                           <span className="text-slate-200">•</span>
                           <div className="flex items-center gap-1">
                             <Star className="w-3 h-3 text-brand-yellow fill-brand-yellow" />
-                            <span className="text-xs font-normal text-slate-700">{pro.rating}</span>
+                            <span className="text-xs font-normal text-slate-700">
+                              {pro.reviews_count && pro.reviews_count > 0 ? pro.rating : 'Not yet reviewed'}
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -3865,11 +3912,7 @@ function MessagesView({ scrollToTop }: { scrollToTop?: () => void }) {
     scrollToTop?.();
   }, [selectedChat]);
 
-  const chats = [
-    { id: 1, name: 'Thomas', lastMsg: 'Thanks for the recommendation!', time: '2m ago', avatar: 'https://i.pravatar.cc/150?u=thomas', online: true },
-    { id: 2, name: 'Marie', lastMsg: 'Did you get your residency yet?', time: '1h ago', avatar: 'https://i.pravatar.cc/150?u=marie', online: false },
-    { id: 3, name: 'Julie', lastMsg: 'The flat is amazing, Valencia is great!', time: '3h ago', avatar: 'https://i.pravatar.cc/150?u=julie', online: true },
-  ];
+  const chats: any[] = [];
 
   return (
     <motion.div 
@@ -3984,6 +4027,7 @@ function MessagesView({ scrollToTop }: { scrollToTop?: () => void }) {
 
 function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professional, onClose: () => void, onNavigate: (view: View) => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -4017,8 +4061,12 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
 
         <div className="px-6 md:px-10 pb-10 -mt-16 relative">
           <div className="flex flex-col md:flex-row gap-6 md:items-end mb-10">
-            <div className="w-32 h-32 md:w-36 md:h-36 rounded-[32px] bg-white p-1.5 overflow-hidden shadow-2xl border-4 border-white ring-1 ring-slate-100 group">
-              <img src={pro.image} alt={pro.name} className="w-full h-full object-cover rounded-[24px] group-hover:scale-110 transition-transform duration-700" />
+            <div className="w-32 h-32 md:w-36 md:h-36 rounded-[32px] bg-white p-1.5 overflow-hidden shadow-2xl border-4 border-white ring-1 ring-slate-100 group flex items-center justify-center">
+              {pro.image ? (
+                <img src={pro.image} alt={pro.name} className="w-full h-full object-cover rounded-[24px] group-hover:scale-110 transition-transform duration-700" />
+              ) : (
+                <User className="w-16 h-16 text-slate-200" />
+              )}
             </div>
             <div className="flex-1 space-y-3 pb-2">
               <div className="flex flex-wrap items-center gap-3">
@@ -4031,7 +4079,7 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
                 </div>
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-xl font-medium border border-slate-100">
                   <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  <span>{pro.rating}</span>
+                  <span>{pro.reviews_count && pro.reviews_count > 0 ? pro.rating : 'Not yet reviewed'}</span>
                 </div>
               </div>
             </div>
@@ -4107,10 +4155,39 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
             </div>
 
             <div className="space-y-6">
+              <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 space-y-6">
+                <div className="space-y-2">
+                  <h4 className="text-lg font-bold text-slate-900">Experience this expert?</h4>
+                  <p className="text-sm text-slate-500 font-medium">Help the community by sharing your feedback about {pro.name}.</p>
+                </div>
+                <button 
+                  onClick={() => setShowReviewModal(true)}
+                  className="w-full py-4 bg-white text-slate-900 border-2 border-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 hover:text-white transition-all active:scale-95 shadow-sm"
+                >
+                  <Star className="w-4 h-4" />
+                  Write a Review
+                </button>
+              </div>
             </div>
           </div>
         </div>
       </motion.div>
+
+      <AnimatePresence>
+        {showReviewModal && (
+          <ReviewModal 
+            pro={pro} 
+            onClose={() => setShowReviewModal(false)}
+            onSubmit={async (reviewData) => {
+              console.log('[Review] Submitting review:', reviewData);
+              // Since reviews_count column might be missing, this is just a simulation 
+              // unless we actually had a reviews table.
+              alert('Review submitted! In a full implementation, this would update the pro\'s rating and reviews count.');
+              setShowReviewModal(false);
+            }} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   </div>
 );
@@ -4572,8 +4649,8 @@ function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, on
     >
       {/* Profile Header */}
       <div className="flex flex-col items-center pt-8 pb-10 bg-white border-b border-slate-100">
-        <div className="w-24 h-24 rounded-full bg-slate-200 border-4 border-white shadow-sm overflow-hidden mb-4">
-          <img src="/photo-vincent.jpg" alt="Profile" className="w-full h-full object-cover" />
+        <div className="w-24 h-24 rounded-full bg-brand-blue/10 border-4 border-white shadow-sm overflow-hidden mb-4 flex items-center justify-center">
+          <User className="w-12 h-12 text-brand-blue" />
         </div>
         <div className="text-center">
           <h2 className="text-xl font-semibold font-display text-brand-navy">Vincent D.</h2>

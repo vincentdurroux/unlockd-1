@@ -6,6 +6,7 @@ export interface SupabaseProfessional {
   company_name?: string;
   profession: string;
   rating: number;
+  reviews_count?: number;
   languages: string[];
   image_url: string;
   description: string;
@@ -14,6 +15,8 @@ export interface SupabaseProfessional {
   website: string;
   instagram: string;
   location: string;
+  lat?: number;
+  lng?: number;
   created_at?: string;
 }
 
@@ -39,24 +42,233 @@ export const proService = {
       throw error;
     }
 
-    return data.map((item: any) => ({
-      ...item,
-      category: item.profession, // Map profession to category for frontend compatibility
-      image: item.image_url, // Map image_url to image for frontend compatibility
-      bio: item.description, // Map description to bio for frontend compatibility
-      languages: typeof item.languages === 'string' ? JSON.parse(item.languages) : item.languages || []
-    }));
+    console.log('[proService] Raw data from Supabase:', data);
+
+    const mappedData = data.map((item: any) => {
+      // Normalize lat/lng from columns, handling strings if necessary
+      let lat = typeof item.lat === 'string' ? parseFloat(item.lat) : item.lat;
+      let lng = typeof item.lng === 'string' ? parseFloat(item.lng) : item.lng;
+      let displayLocation = item.location || '';
+
+      // Fallback: Check if coordinates are bundled in the location field if columns are empty/invalid
+      // We check both lat and lng to be safe, using a small epsilon
+      const hasValidColumns = typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng) && 
+                              (Math.abs(lat) > 0.0001 || Math.abs(lng) > 0.0001);
+      
+      if (!hasValidColumns && typeof displayLocation === 'string' && (displayLocation.startsWith('GEO:') || displayLocation.includes('GEO:'))) {
+        try {
+          // More flexible regex to match GEO:lat,lng|Address even if there are spaces
+          const geoMatch = displayLocation.match(/GEO:\s*([\d.-]+)\s*,\s*([\d.-]+)\s*\|(.*)/);
+          if (geoMatch) {
+            lat = parseFloat(geoMatch[1]);
+            lng = parseFloat(geoMatch[2]);
+            displayLocation = geoMatch[3].trim();
+            console.log(`[proService] Recovered coordinates from location bundle for ${item.name || 'Pro'}: ${lat}, ${lng}`);
+          }
+        } catch (e) {
+          console.error('[proService] Error parsing bundled coordinates:', e);
+        }
+      }
+
+      return {
+        ...item,
+        location: displayLocation,
+        category: item.profession || item.category, // Map profession to category for frontend compatibility
+        image: item.image_url || item.image, // Map image_url or image for frontend compatibility
+        bio: item.description || item.bio, // Map description to bio for frontend compatibility
+        reviews_count: item.reviews_count || 0, // Fallback to 0 if column is missing
+        languages: typeof item.languages === 'string' ? JSON.parse(item.languages) : item.languages || [],
+        coordinates: (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng) && (Math.abs(lat) > 0.0001 || Math.abs(lng) > 0.0001)) ? 
+          { lat, lng } : null
+      };
+    });
+
+    console.log('[proService] Mapped data from Supabase:', mappedData);
+    return mappedData;
   },
 
   async createProfessional(pro: any) {
     if (!isSupabaseConfigured) return null;
 
-    const { data, error } = await supabase
-      .from('professionals')
-      .insert([pro]);
+    // Normalize coordinates and ensure they are numbers
+    let lat = typeof pro.lat === 'string' ? parseFloat(pro.lat) : pro.lat;
+    let lng = typeof pro.lng === 'string' ? parseFloat(pro.lng) : pro.lng;
+    
+    // Fallback back to 0 if NaN
+    if (isNaN(lat)) lat = 0;
+    if (isNaN(lng)) lng = 0;
 
-    if (error) throw error;
-    return data;
+    // Strip existing GEO: prefix if somehow present
+    let cleanLocation = pro.location || '';
+    if (typeof cleanLocation === 'string' && cleanLocation.startsWith('GEO:')) {
+      const match = cleanLocation.match(/^GEO:[\d.-]+,[\d.-]+\|(.*)$/);
+      if (match) cleanLocation = match[1];
+    }
+
+    const finalPro: any = {
+      name: pro.name,
+      company_name: pro.company_name,
+      profession: pro.profession || pro.category,
+      rating: pro.rating,
+      languages: pro.languages,
+      image_url: pro.image_url || pro.image,
+      description: pro.description || pro.bio,
+      phone: pro.phone,
+      email: pro.email,
+      website: pro.website,
+      instagram: pro.instagram,
+      lat: lat,
+      lng: lng,
+      location: cleanLocation
+    };
+
+    // Remove undefined values to avoid Supabase errors
+    Object.keys(finalPro).forEach(key => {
+      if (finalPro[key] === undefined) {
+        delete finalPro[key];
+      }
+    });
+
+    console.log('[proService] Creating pro with payload:', JSON.stringify(finalPro, null, 2));
+    const { data: insertData, error } = await supabase
+      .from('professionals')
+      .insert([finalPro])
+      .select();
+
+    if (error) {
+      console.error('Supabase create error:', error);
+      throw error;
+    }
+    return insertData;
+  },
+
+  async updateProfessional(id: string | number, pro: any) {
+    if (!isSupabaseConfigured) return null;
+
+    console.log('[proService] updateProfessional requested for ID:', id);
+
+    // Normalize ID - only parse as int if it's strictly digit-only
+    let finalId = id;
+    if (typeof id === 'string' && /^\d+$/.test(id)) {
+      finalId = parseInt(id, 10);
+      console.log('[proService] Normalized numeric string ID to number:', finalId);
+    }
+
+    // Diagnostic: Check auth state
+    const { data: { session } } = await supabase.auth.getSession();
+    console.log('[proService] Current user:', session?.user?.email || 'Anonymous');
+
+    // Diagnostic: Check if record exists before update and get its current state to see columns
+    const { data: existingRecord, error: checkError } = await supabase
+      .from('professionals')
+      .select('*')
+      .eq('id', finalId)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error('[proService] Error fetching existing record:', checkError);
+    }
+    
+    if (!existingRecord) {
+      console.warn('[proService] Record not found in database for ID:', finalId);
+      return { 
+        success: false, 
+        message: `Professional with ID ${finalId} not found. Please refresh the page.` 
+      };
+    }
+
+    console.log('[proService] Found record. Comparing IDs - Input:', finalId, 'DB:', existingRecord.id);
+
+    // Normalize coordinates
+    let lat = typeof pro.lat === 'string' ? parseFloat(pro.lat) : pro.lat;
+    let lng = typeof pro.lng === 'string' ? parseFloat(pro.lng) : pro.lng;
+    if (isNaN(lat)) lat = 0;
+    if (isNaN(lng)) lng = 0;
+
+    // Clean location (remove GEO: prefix if provided in input)
+    let cleanLocation = pro.location || '';
+    if (typeof cleanLocation === 'string' && cleanLocation.startsWith('GEO:')) {
+      const match = cleanLocation.match(/^GEO:[\d.-]+,[\d.-]+\|(.*)$/);
+      if (match) cleanLocation = match[1];
+    }
+
+    // Build payload dynamically based on existing columns in the table
+    const columns = Object.keys(existingRecord);
+    const updatePayload: any = {};
+    
+    const setIfColumnExists = (colName: string, value: any) => {
+      if (columns.includes(colName)) {
+        updatePayload[colName] = value;
+      }
+    };
+
+    setIfColumnExists('name', pro.name);
+    setIfColumnExists('company_name', pro.company_name);
+    
+    // Profession mapping
+    if (columns.includes('profession')) {
+      updatePayload.profession = pro.profession || pro.category;
+    } else if (columns.includes('category')) {
+      updatePayload.category = pro.profession || pro.category;
+    }
+
+    setIfColumnExists('rating', pro.rating);
+    setIfColumnExists('languages', Array.isArray(pro.languages) ? pro.languages : []);
+    
+    // Image mapping
+    if (columns.includes('image_url')) {
+      updatePayload.image_url = pro.image_url || pro.image;
+    }
+    if (columns.includes('image')) {
+      updatePayload.image = pro.image_url || pro.image;
+    }
+
+    // Description/Bio mapping
+    if (columns.includes('description')) {
+      updatePayload.description = pro.description || pro.bio;
+    }
+    if (columns.includes('bio')) {
+      updatePayload.bio = pro.description || pro.bio;
+    }
+
+    setIfColumnExists('phone', pro.phone);
+    setIfColumnExists('email', pro.email);
+    setIfColumnExists('website', pro.website);
+    setIfColumnExists('instagram', pro.instagram);
+    setIfColumnExists('lat', lat);
+    setIfColumnExists('lng', lng);
+    setIfColumnExists('location', cleanLocation);
+
+    // Remove undefined
+    Object.keys(updatePayload).forEach(key => {
+      if (updatePayload[key] === undefined) {
+        delete updatePayload[key];
+      }
+    });
+
+    console.log('[proService] Executing UPDATE. ID:', finalId, 'Payload:', JSON.stringify(updatePayload, null, 2));
+    
+    const { data: updateData, error } = await supabase
+      .from('professionals')
+      .update(updatePayload)
+      .eq('id', finalId)
+      .select();
+
+    if (error) {
+      console.error('[proService] Supabase update ERROR:', error);
+      return { success: false, message: `Database error: ${error.message}` };
+    }
+    
+    if (!updateData || updateData.length === 0) {
+      console.warn('[proService] UPDATE succeeded but returned no rows. This usually means Row Level Security (RLS) policies are preventing this user from updating this specific record or no fields actually changed.');
+      return { 
+        success: false, 
+        message: 'The update was rejected by the database. This usually happens if you are not logged in as an administrator or do not have permission to modify this record.' 
+      };
+    }
+
+    console.log('[proService] Update SUCCESS. New data:', updateData[0]);
+    return { success: true, data: updateData[0] };
   },
 
   async submitRecommendation(recommendation: {
