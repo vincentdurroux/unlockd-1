@@ -75,6 +75,7 @@ import {
   MoreHorizontal
 } from 'lucide-react';
 import { storageService } from './lib/storage';
+import imageCompression from 'browser-image-compression';
 import { marketplaceService, Ad } from './services/marketplaceService';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
@@ -935,6 +936,14 @@ export default function App() {
         </div>
         <motion.button 
           onClick={() => setShowAddPro(true)}
+          animate={{
+            scale: [1, 1.04, 1],
+          }}
+          transition={{
+            duration: 2.5,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
           className="relative w-12 h-12 md:w-14 md:h-14 flex items-center justify-center group flex-shrink-0 ml-2"
         >
           {/* Central Button */}
@@ -942,12 +951,8 @@ export default function App() {
             <Plus className="w-5 h-5 text-white" />
           </div>
           
-          {/* Spinning Circular Text */}
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
-            className="absolute inset-0 w-full h-full"
-          >
+          {/* Circular Text */}
+          <div className="absolute inset-0 w-full h-full">
             <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
               <defs>
                 <path
@@ -955,13 +960,13 @@ export default function App() {
                   d="M 50, 50 m -43, 0 a 43,43 0 1,1 86,0 a 43,43 0 1,1 -86,0"
                 />
               </defs>
-              <text className="text-[16px] font-black fill-brand-yellow tracking-[0.15em] uppercase">
+              <text className="text-[19px] font-black fill-brand-yellow tracking-[0.08em] uppercase">
                 <textPath xlinkHref="#circlePath">
-                  Add a Pro • Add a Pro • 
+                  Recommend a Pro •
                 </textPath>
               </text>
             </svg>
-          </motion.div>
+          </div>
         </motion.button>
       </header>
 
@@ -2169,6 +2174,8 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
 
   const handleStartAdding = (rec: any) => {
     setActiveRecId(rec.id);
+    setEditingProId(null);
+    setSelectedFile(null);
     setNewPro({
       ...newPro,
       name: rec.pro_name || '',
@@ -2189,24 +2196,33 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
     console.log('[handleStartEditing] Editing pro:', pro);
     setEditingProId(pro.id);
     setActiveRecId(null);
+    setSelectedFile(null);
+    
+    // Improved mapping for flexibility
+    const bioValue = pro.bio || pro.description || '';
+    const imageValue = pro.image || pro.image_url || '';
+    const categoryValue = pro.category || pro.profession || '';
+    const latValue = pro.coordinates?.lat ?? pro.lat ?? 0;
+    const lngValue = pro.coordinates?.lng ?? pro.lng ?? 0;
+
     setNewPro({
       name: pro.name || '',
       company_name: pro.company_name || '',
-      category: pro.category || '',
+      category: categoryValue,
       rating: pro.rating || 5,
       reviews_count: pro.reviews_count || 0,
       languages: pro.languages || [],
-      image: pro.image || '',
-      bio: pro.bio || '',
+      image: imageValue,
+      bio: bioValue,
       phone: pro.phone || '',
       email: pro.email || '',
       website: pro.website || '',
       instagram: pro.instagram || '',
       location: pro.location || '',
-      lat: pro.coordinates?.lat || 0,
-      lng: pro.coordinates?.lng || 0
+      lat: Number(latValue),
+      lng: Number(lngValue)
     });
-    setPreviewUrl(pro.image || null);
+    setPreviewUrl(imageValue || null);
     setActiveTab('add_pro');
     scrollToTop?.();
   };
@@ -2221,9 +2237,26 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
 
     try {
       let imageUrl = newPro.image;
+      let oldImageUrlToDelete = null;
 
       if (selectedFile) {
-        // Sanitize path
+        console.log('[handleAddPro] Compressing and uploading selected file:', selectedFile.name);
+        
+        // 1. Compress image
+        let fileToUpload = selectedFile;
+        try {
+          const options = {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1920,
+            useWebWorker: true,
+          };
+          fileToUpload = await imageCompression(selectedFile, options);
+          console.log(`[handleAddPro] Compressed: ${selectedFile.size / 1024 / 1024}MB -> ${fileToUpload.size / 1024 / 1024}MB`);
+        } catch (compressionError) {
+          console.error('[handleAddPro] Compression failed, using original file:', compressionError);
+        }
+
+        // 2. Prepare path and sanity check
         const sanitizedName = selectedFile.name
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
@@ -2231,7 +2264,19 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
           .replace(/_{2,}/g, '_');
           
         const path = `images_pro/${Date.now()}_${sanitizedName}`;
-        imageUrl = await storageService.uploadFile('images', path, selectedFile);
+        
+        // 3. Keep track of old image for deletion later
+        if (editingProId && newPro.image && newPro.image.includes('supabase.co')) {
+          oldImageUrlToDelete = newPro.image;
+        }
+
+        // 4. Upload
+        imageUrl = await storageService.uploadFile('images', path, fileToUpload);
+        
+        // CRITICAL: Successfully uploaded, so update state to prevent re-uploading if DB update fails
+        setNewPro(prev => ({ ...prev, image: imageUrl }));
+        setSelectedFile(null);
+        console.log('[handleAddPro] File uploaded successfully:', imageUrl);
       }
 
       // Geocoding fallback
@@ -2290,6 +2335,7 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
         
         if (result && result.success === false) {
            setMsg({ type: 'error', text: result.message || 'Failed to update professional. Record not found.' });
+           setIsSubmitting(false); // Stop here so they can fix and retry
            return;
         }
         
@@ -2304,6 +2350,35 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
           await fetchRecommendations(); // Refresh the list
         }
         setMsg({ type: 'success', text: 'Professional added successfully!' });
+      }
+
+      // Cleanup old image if everything succeeded and we had a new upload
+      if (oldImageUrlToDelete) {
+        try {
+          // Robust path extraction from public URL
+          // Supabase public URLs are typically: https://[project].supabase.co/storage/v1/object/public/[bucket]/[path]
+          let pathToDelete = null;
+          
+          if (oldImageUrlToDelete.includes('/public/images/')) {
+            pathToDelete = oldImageUrlToDelete.split('/public/images/')[1];
+          } else if (oldImageUrlToDelete.includes('/images/')) {
+            // Fallback for different URL patterns
+            const parts = oldImageUrlToDelete.split('/images/');
+            pathToDelete = parts[parts.length - 1];
+          }
+
+          if (pathToDelete) {
+            // Remove any query parameters if present
+            pathToDelete = pathToDelete.split('?')[0];
+            
+            console.log('[handleAddPro] Clean up: Deleting old image from storage:', pathToDelete);
+            await storageService.deleteFile('images', pathToDelete);
+          } else {
+            console.warn('[handleAddPro] Could not parse path for deletion from URL:', oldImageUrlToDelete);
+          }
+        } catch (cleanupError) {
+          console.warn('[handleAddPro] Failed to delete old image:', cleanupError);
+        }
       }
 
       if (onRefetchPros) {
@@ -2373,6 +2448,25 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
               setActiveTab('add_pro');
               setActiveRecId(null);
               setEditingProId(null);
+              setSelectedFile(null);
+              setNewPro({
+                name: '',
+                company_name: '',
+                category: '',
+                rating: 5,
+                reviews_count: 0,
+                languages: [],
+                image: '',
+                bio: '',
+                phone: '',
+                email: '',
+                website: '',
+                instagram: '',
+                location: '',
+                lat: 0,
+                lng: 0
+              });
+              setPreviewUrl(null);
             }}
             className={cn(
               "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
@@ -2386,6 +2480,7 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
               setActiveTab('completed');
               setActiveRecId(null);
               setEditingProId(null);
+              setSelectedFile(null);
             }}
             className={cn(
               "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
@@ -2399,6 +2494,7 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
               setActiveTab('refused');
               setActiveRecId(null);
               setEditingProId(null);
+              setSelectedFile(null);
             }}
             className={cn(
               "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
@@ -2426,23 +2522,64 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
             <div className="flex justify-center py-12">
               <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : recommendations.filter(r => r.status === 'pending' || !r.status).length === 0 ? (
-            <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
-              <p className="text-slate-400 font-medium">No pending recommendations.</p>
-            </div>
           ) : (
-            recommendations
-              .filter(r => r.status === 'pending' || !r.status)
-              .map((rec) => (
-                <RecommendationItem 
-                  key={rec.id} 
-                  rec={rec} 
-                  onUpdate={fetchRecommendations} 
-                  onStartAdding={handleStartAdding}
-                />
-              ))
-        )}
-      </div>
+            <div className="space-y-8">
+              {/* Processed Summary Line */}
+              <div className="flex items-center gap-4 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="flex -space-x-2">
+                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border-2 border-white">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center border-2 border-white">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center border-2 border-white">
+                    <X className="w-4 h-4 text-rose-500" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-bold text-slate-700 tracking-tight">
+                    {recommendations.filter(r => r.status && r.status !== 'pending').length} Processed Recommendations
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-medium tracking-tight">
+                    Check Completed or Refused tabs to see details.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
+                    <span className="text-xs font-black text-slate-400">{recommendations.filter(r => r.status === 'pending' || !r.status).length}</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Pending</span>
+                  </div>
+                  <div className="flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
+                    <span className="text-xs font-black text-emerald-500">{recommendations.filter(r => r.status === 'validated').length}</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Added</span>
+                  </div>
+                  <div className="flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
+                    <span className="text-xs font-black text-rose-500">{recommendations.filter(r => r.status === 'refused').length}</span>
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Refused</span>
+                  </div>
+                </div>
+              </div>
+
+              {recommendations.filter(r => r.status === 'pending' || !r.status).length === 0 ? (
+                <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
+                  <p className="text-slate-400 font-medium">No pending recommendations.</p>
+                </div>
+              ) : (
+                recommendations
+                  .filter(r => r.status === 'pending' || !r.status)
+                  .map((rec) => (
+                    <RecommendationItem 
+                      key={rec.id} 
+                      rec={rec} 
+                      onUpdate={fetchRecommendations} 
+                      onStartAdding={handleStartAdding}
+                    />
+                  ))
+              )}
+            </div>
+          )}
+        </div>
       ) : activeTab === 'refused' ? (
         <div className="space-y-4">
           {loading ? (

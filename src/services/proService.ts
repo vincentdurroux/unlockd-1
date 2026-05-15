@@ -193,51 +193,71 @@ export const proService = {
     }
 
     // Build payload dynamically based on existing columns in the table
+    // and ONLY include fields that have actually changed to minimize RLS conflicts
     const columns = Object.keys(existingRecord);
     const updatePayload: any = {};
     
-    const setIfColumnExists = (colName: string, value: any) => {
-      if (columns.includes(colName)) {
-        updatePayload[colName] = value;
+    const setIfChanged = (colName: string, newValue: any, existingValue: any) => {
+      if (!columns.includes(colName)) return;
+      
+      // Basic comparison
+      let isChanged = false;
+      if (Array.isArray(newValue) && Array.isArray(existingValue)) {
+        isChanged = JSON.stringify(newValue) !== JSON.stringify(existingValue);
+      } else if (typeof newValue === 'number' && typeof existingValue === 'number') {
+        isChanged = Math.abs(newValue - existingValue) > 0.000001;
+      } else {
+        isChanged = String(newValue || '') !== String(existingValue || '');
+      }
+
+      if (isChanged) {
+        updatePayload[colName] = newValue;
       }
     };
 
-    setIfColumnExists('name', pro.name);
-    setIfColumnExists('company_name', pro.company_name);
+    setIfChanged('name', pro.name, existingRecord.name);
+    setIfChanged('company_name', pro.company_name, existingRecord.company_name);
     
     // Profession mapping
+    const newProfession = pro.profession || pro.category;
+    const existingProfession = existingRecord.profession || existingRecord.category;
     if (columns.includes('profession')) {
-      updatePayload.profession = pro.profession || pro.category;
+      setIfChanged('profession', newProfession, existingRecord.profession);
     } else if (columns.includes('category')) {
-      updatePayload.category = pro.profession || pro.category;
+      setIfChanged('category', newProfession, existingRecord.category);
     }
 
-    setIfColumnExists('rating', pro.rating);
-    setIfColumnExists('languages', Array.isArray(pro.languages) ? pro.languages : []);
+    setIfChanged('rating', pro.rating, existingRecord.rating);
+    setIfChanged('languages', Array.isArray(pro.languages) ? pro.languages : [], existingRecord.languages);
     
     // Image mapping
+    const newImageUrl = pro.image_url || pro.image;
     if (columns.includes('image_url')) {
-      updatePayload.image_url = pro.image_url || pro.image;
+      setIfChanged('image_url', newImageUrl, existingRecord.image_url);
     }
     if (columns.includes('image')) {
-      updatePayload.image = pro.image_url || pro.image;
+      setIfChanged('image', newImageUrl, existingRecord.image);
+    }
+    if (columns.includes('avatar_url')) {
+      setIfChanged('avatar_url', newImageUrl, existingRecord.avatar_url);
     }
 
     // Description/Bio mapping
+    const newBio = pro.description || pro.bio;
     if (columns.includes('description')) {
-      updatePayload.description = pro.description || pro.bio;
+      setIfChanged('description', newBio, existingRecord.description);
     }
     if (columns.includes('bio')) {
-      updatePayload.bio = pro.description || pro.bio;
+      setIfChanged('bio', newBio, existingRecord.bio);
     }
 
-    setIfColumnExists('phone', pro.phone);
-    setIfColumnExists('email', pro.email);
-    setIfColumnExists('website', pro.website);
-    setIfColumnExists('instagram', pro.instagram);
-    setIfColumnExists('lat', lat);
-    setIfColumnExists('lng', lng);
-    setIfColumnExists('location', cleanLocation);
+    setIfChanged('phone', pro.phone, existingRecord.phone);
+    setIfChanged('email', pro.email, existingRecord.email);
+    setIfChanged('website', pro.website, existingRecord.website);
+    setIfChanged('instagram', pro.instagram, existingRecord.instagram);
+    setIfChanged('lat', lat, existingRecord.lat);
+    setIfChanged('lng', lng, existingRecord.lng);
+    setIfChanged('location', cleanLocation, existingRecord.location);
 
     // Remove undefined
     Object.keys(updatePayload).forEach(key => {
@@ -245,6 +265,11 @@ export const proService = {
         delete updatePayload[key];
       }
     });
+
+    if (Object.keys(updatePayload).length === 0) {
+      console.log('[proService] No fields changed, skipping update call.');
+      return { success: true, data: existingRecord };
+    }
 
     console.log('[proService] Executing UPDATE. ID:', finalId, 'Payload:', JSON.stringify(updatePayload, null, 2));
     

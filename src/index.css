@@ -40,15 +40,29 @@
 }
 
 html,
-body {
+body,
+#root {
   background-color: var(--color-bg);
   color: var(--color-brand-navy);
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
   height: 100%;
   width: 100%;
-  overscroll-behavior: none;
-  touch-action: manipulation;
+  overflow-x: hidden;
+  position: fixed;
+  left: 0;
+  top: 0;
+  overscroll-behavior-y: contain;
+  overscroll-behavior-x: none;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Allow text selection in specific areas if needed, but default to none for native feel */
+input, textarea, [contenteditable="true"] {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .safe-area-bottom {
