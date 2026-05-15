@@ -75,8 +75,8 @@ import {
   MoreHorizontal
 } from 'lucide-react';
 import { storageService } from './lib/storage';
-import imageCompression from 'browser-image-compression';
 import { marketplaceService, Ad } from './services/marketplaceService';
+import { compressImage } from './services/imageService';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -2244,17 +2244,7 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
         
         // 1. Compress image
         let fileToUpload = selectedFile;
-        try {
-          const options = {
-            maxSizeMB: 1,
-            maxWidthOrHeight: 1920,
-            useWebWorker: true,
-          };
-          fileToUpload = await imageCompression(selectedFile, options);
-          console.log(`[handleAddPro] Compressed: ${selectedFile.size / 1024 / 1024}MB -> ${fileToUpload.size / 1024 / 1024}MB`);
-        } catch (compressionError) {
-          console.error('[handleAddPro] Compression failed, using original file:', compressionError);
-        }
+        fileToUpload = await compressImage(selectedFile);
 
         // 2. Prepare path and sanity check
         const sanitizedName = selectedFile.name
