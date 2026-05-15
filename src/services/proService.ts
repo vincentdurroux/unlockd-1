@@ -296,6 +296,92 @@ export const proService = {
     return { success: true, data: updateData[0] };
   },
 
+  async deleteProfessional(id: string | number) {
+    if (!isSupabaseConfigured) return null;
+
+    console.log('[proService] deleteProfessional requested for ID:', id);
+
+    let finalId = id;
+    // Check if it's a numeric string and convert to number if it's not a UUID
+    if (typeof id === 'string' && /^\d+$/.test(id)) {
+      finalId = parseInt(id, 10);
+    }
+
+    // 1. Fetch current data for archiving
+    const { data: proToArchive, error: fetchError } = await supabase
+      .from('professionals')
+      .select('*')
+      .eq('id', finalId)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('[proService] Error fetching pro for archive:', fetchError);
+      throw new Error(`Failed to fetch professional before deletion: ${fetchError.message}`);
+    }
+
+    if (!proToArchive) {
+      console.warn('[proService] Professional not found for archiving at ID:', finalId);
+    } else {
+      console.log('[proService] Archiving pro data...');
+      
+      // Explicitly pick fields to archive to avoid schema mismatches if the 
+      // archive table is missing some secondary columns found in professionals table
+      const archiveData: any = {
+        name: proToArchive.name,
+        company_name: proToArchive.company_name,
+        profession: proToArchive.profession || proToArchive.category,
+        rating: proToArchive.rating,
+        reviews_count: proToArchive.reviews_count,
+        languages: proToArchive.languages,
+        image_url: proToArchive.image_url || proToArchive.image,
+        description: proToArchive.description || proToArchive.bio,
+        phone: proToArchive.phone,
+        email: proToArchive.email,
+        website: proToArchive.website,
+        instagram: proToArchive.instagram,
+        location: proToArchive.location,
+        lat: proToArchive.lat,
+        lng: proToArchive.lng,
+        created_at: proToArchive.created_at,
+        original_id: String(proToArchive.id), // Ensure it's a string
+        deleted_at: new Date().toISOString()
+      };
+
+      // Remove undefined values
+      Object.keys(archiveData).forEach(key => {
+        if (archiveData[key] === undefined) delete archiveData[key];
+      });
+      
+      const { error: archiveError } = await supabase
+        .from('deleted_professionals')
+        .insert([archiveData]);
+
+      if (archiveError) {
+        console.error('[proService] Archiving failed:', archiveError);
+        // If it's a "column not found" error, we might want to warn specifically
+        if (archiveError.message?.includes('column')) {
+            throw new Error(`Archiving failed: ${archiveError.message}. Make sure your 'deleted_professionals' table has all the required columns (name, description, image_url, etc.).`);
+        }
+        throw new Error(`Archiving failed: ${archiveError.message}. Deletion aborted.`);
+      }
+      console.log('[proService] Archiving successful.');
+    }
+
+    // 3. Delete from original table
+    const { error: deleteError } = await supabase
+      .from('professionals')
+      .delete()
+      .eq('id', finalId);
+
+    if (deleteError) {
+      console.error('[proService] Supabase delete ERROR:', deleteError);
+      throw new Error(`Deletion failed: ${deleteError.message}`);
+    }
+    
+    console.log('[proService] Deletion successful for ID:', finalId);
+    return { success: true };
+  },
+
   async submitRecommendation(recommendation: {
     user_email: string;
     pro_name?: string;

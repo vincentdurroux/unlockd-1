@@ -48,6 +48,7 @@ import {
   Rocket,
   AlertCircle,
   FileText,
+  Trash2,
   Users,
   HeartPulse,
   Briefcase,
@@ -87,7 +88,7 @@ import { proService } from './services/proService';
 
 const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 
-const LANGUAGES_LIST = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian', 'Chinese', 'Japanese', 'Arabic', 'Catalan', 'Valencian'];
+const LANGUAGES_LIST = ['English', 'Spanish', 'French', 'German', 'Italian', 'Portuguese', 'Dutch', 'Russian', 'Chinese', 'Japanese', 'Arabic'];
 
 function AddressAutocomplete({ 
   value, 
@@ -517,6 +518,7 @@ export default function App() {
   const [initialEventId, setInitialEventId] = useState<string | null>(null);
   const [initialProId, setInitialProId] = useState<string | null>(null);
   const [initialGuideId, setInitialGuideId] = useState<string | null>(null);
+  const [initialSearch, setInitialSearch] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useState<{ query: string; location: string; category: string; filters?: any }>({ query: '', location: '', category: 'All' });
 
   useEffect(() => {
@@ -971,18 +973,24 @@ export default function App() {
       </header>
 
       {/* Main Content Area */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto no-scrollbar relative pb-24">
+      <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar relative pb-24">
         <motion.div
-          className="min-h-full w-full"
+          className="min-h-full w-full max-w-full"
         >
           <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={activeView}
               custom={direction}
-              initial={{ opacity: 0, x: direction * 30 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: direction * -30 }}
-              transition={{ type: "spring", stiffness: 500, damping: 40, mass: 0.5 }}
+              initial={{ opacity: 0, x: direction * 50, scale: 0.98 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: direction * -50, scale: 1.02 }}
+              transition={{ 
+                type: "spring", 
+                stiffness: 300, 
+                damping: 30, 
+                mass: 0.8,
+                opacity: { duration: 0.3 }
+              }}
               className="min-h-full w-full"
             >
               {activeView === 'home' && (
@@ -993,6 +1001,7 @@ export default function App() {
                     if (params?.eventId) setInitialEventId(params.eventId);
                     if (params?.proId) setInitialProId(params.proId);
                     if (params?.guideId) setInitialGuideId(params.guideId);
+                    if (params?.searchQuery) setInitialSearch(params.searchQuery);
                     navigateTo(view);
                   }}
                   onAddPro={() => setShowAddPro(true)} 
@@ -1007,7 +1016,11 @@ export default function App() {
                   allPros={allPros}
                   onNavigate={navigateTo} 
                   initialProId={initialProId}
-                  onModalClose={() => setInitialProId(null)}
+                  initialSearch={initialSearch}
+                  onModalClose={() => {
+                    setInitialProId(null);
+                    setInitialSearch(null);
+                  }}
                   scrollToTop={scrollToTop}
                 />
               )}
@@ -1540,17 +1553,24 @@ export default function App() {
               key={item.id}
               onClick={() => navigateTo(item.id as View)}
               className={cn(
-                "flex-1 flex flex-col items-center justify-center gap-0.5 transition-all hover:scale-105 active:scale-95 min-w-0",
+                "relative flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all active:scale-95 min-w-0",
                 (activeView === item.id) ? "text-brand-blue" : "text-slate-400"
               )}
             >
+              {(activeView === item.id) && (
+                <motion.div 
+                  layoutId="activeTab"
+                  className="absolute inset-x-1 inset-y-0.5 bg-brand-blue/5 rounded-2xl -z-10"
+                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                />
+              )}
               <item.icon className={cn(
-                "w-8 h-8 transition-all", 
+                "w-7 h-7 transition-all", 
                 (activeView === item.id) ? "stroke-[2.5px] text-brand-blue" : "stroke-[1.5px] text-slate-400"
               )} />
               <span className={cn(
-                "text-[11px] font-bold text-center truncate w-full px-1 transition-all",
-                (activeView === item.id) ? "text-brand-blue" : "text-slate-400"
+                "text-[10px] font-bold text-center truncate w-full px-1 transition-all",
+                (activeView === item.id) ? "text-brand-blue" : "text-slate-400 font-medium"
               )}>
                 {item.label}
               </span>
@@ -1955,25 +1975,25 @@ function RecommendationItem({ rec, onUpdate, onStartAdding }: { rec: any, onUpda
   };
 
   return (
-    <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all space-y-4">
-      <div className="flex justify-between items-start">
-        <div className="flex gap-4">
+    <div className="bg-white p-5 md:p-6 rounded-[28px] md:rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all space-y-4 max-w-full overflow-hidden">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div className="flex gap-4 w-full sm:w-auto">
           {rec.pro_image_url && (
-            <div className="w-16 h-16 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100 shadow-sm">
+            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl overflow-hidden flex-shrink-0 border border-slate-100 shadow-sm">
               <img src={rec.pro_image_url} alt="" className="w-full h-full object-cover" />
             </div>
           )}
-          <div className="space-y-1">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-lg text-slate-900">{rec.pro_name || rec.company_name}</h3>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+              <h3 className="font-bold text-base md:text-lg text-slate-900 truncate max-w-[200px]">{rec.pro_name || rec.company_name}</h3>
               {rec.pro_name && rec.company_name && (
-                <span className="text-slate-400 font-medium text-sm">at {rec.company_name}</span>
+                <span className="text-slate-400 font-medium text-xs md:text-sm">at {rec.company_name}</span>
               )}
             </div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 bg-slate-100 text-[10px] font-semibold uppercase text-slate-500 rounded-full tracking-widest">{rec.pro_category}</span>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              <span className="px-2 py-0.5 bg-slate-100 text-[9px] md:text-[10px] font-bold uppercase text-slate-500 rounded-full tracking-wider">{rec.pro_category}</span>
               <div className={cn(
-                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-widest border flex items-center gap-1",
+                "px-2 py-0.5 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-widest border flex items-center gap-1",
                 getStatusColor(rec.status)
               )}>
                 {getStatusIcon(rec.status)}
@@ -1982,36 +2002,47 @@ function RecommendationItem({ rec, onUpdate, onStartAdding }: { rec: any, onUpda
             </div>
           </div>
         </div>
-        <span className="text-[10px] text-slate-400 font-semibold uppercase">{rec.created_at ? new Date(rec.created_at).toLocaleDateString() : 'Recently'}</span>
+        <span className="text-[10px] text-slate-400 font-bold uppercase sm:ml-auto whitespace-nowrap">{rec.created_at ? new Date(rec.created_at).toLocaleDateString() : 'Recently'}</span>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-        {rec.pro_email && (
+      {rec.status !== 'refused' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-sm bg-slate-50/50 p-4 rounded-2xl">
+          {rec.pro_email && (
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-1">
+                <Mail className="w-3 h-3" /> Email
+              </p>
+              <p className="font-medium text-slate-700 truncate">{rec.pro_email}</p>
+            </div>
+          )}
+          {rec.pro_phone && (
+            <div className="space-y-1">
+              <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-1">
+                <Phone className="w-3 h-3" /> Phone
+              </p>
+              <p className="font-medium text-slate-700">{rec.pro_phone}</p>
+            </div>
+          )}
           <div className="space-y-1">
-            <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-1">
-              <Mail className="w-3 h-3" /> Email
-            </p>
-            <p className="font-medium text-slate-700 truncate">{rec.pro_email}</p>
+            <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Suggested by</p>
+            <p className="font-medium text-brand-blue truncate">{rec.user_email}</p>
           </div>
-        )}
-        {rec.pro_phone && (
-          <div className="space-y-1">
-            <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider flex items-center gap-1">
-              <Phone className="w-3 h-3" /> Phone
-            </p>
-            <p className="font-medium text-slate-700">{rec.pro_phone}</p>
-          </div>
-        )}
-        <div className="space-y-1">
-          <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Suggested by</p>
-          <p className="font-medium text-brand-blue truncate">{rec.user_email}</p>
         </div>
-      </div>
+      )}
 
-      {rec.notes && (
+      {rec.status !== 'refused' && rec.notes && (
         <div className="bg-slate-50 p-4 rounded-2xl">
           <p className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider mb-2">Member Notes</p>
           <p className="text-slate-600 text-sm leading-relaxed italic">"{rec.notes}"</p>
+        </div>
+      )}
+
+      {rec.status === 'refused' && (
+        <div className="bg-rose-50/30 p-4 rounded-2xl border border-rose-100/50">
+          <p className="text-[10px] text-rose-400 font-bold uppercase tracking-widest flex items-center gap-1.5 mb-1">
+            <AlertCircle className="w-3 h-3" /> Recommended Pro Refused
+          </p>
+          <p className="text-xs text-slate-500 font-medium">This recommendation is currently hidden from the live app. You can reset it to move it back to the moderation queue.</p>
         </div>
       )}
 
@@ -2036,7 +2067,7 @@ function RecommendationItem({ rec, onUpdate, onStartAdding }: { rec: any, onUpda
               <div className="flex items-center gap-2 px-4 py-2 bg-emerald-500 text-white rounded-xl text-[10px] font-bold uppercase tracking-widest">
                 <CheckCircle2 className="w-3.5 h-3.5" /> Validated
               </div>
-            ) : (
+            ) : rec.status !== 'refused' && (
               <button 
                 disabled={isUpdating}
                 onClick={() => onStartAdding(rec)}
@@ -2103,8 +2134,9 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
   const [activeTab, setActiveTab] = useState<'recommendations' | 'add_pro' | 'completed' | 'refused'>('recommendations');
   const [activeRecId, setActiveRecId] = useState<string | null>(null);
   const [editingProId, setEditingProId] = useState<string | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [completedPros, setCompletedPros] = useState<Professional[]>([]);
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
 
   const fetchCompletedPros = async () => {
     try {
@@ -2198,12 +2230,12 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
     setActiveRecId(null);
     setSelectedFile(null);
     
-    // Improved mapping for flexibility
-    const bioValue = pro.bio || pro.description || '';
-    const imageValue = pro.image || pro.image_url || '';
-    const categoryValue = pro.category || pro.profession || '';
-    const latValue = pro.coordinates?.lat ?? pro.lat ?? 0;
-    const lngValue = pro.coordinates?.lng ?? pro.lng ?? 0;
+    // Mapping from Professional interface (which is already normalized by proService)
+    const bioValue = pro.bio || '';
+    const imageValue = pro.image || '';
+    const categoryValue = pro.category || '';
+    const latValue = pro.coordinates?.lat ?? 0;
+    const lngValue = pro.coordinates?.lng ?? 0;
 
     setNewPro({
       name: pro.name || '',
@@ -2407,92 +2439,163 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
     }
   };
 
+  const handleDeletePro = async () => {
+    if (!editingProId) return;
+    
+    setIsSubmitting(true);
+    setMsg(null);
+    setShowConfirmModal(false);
+    
+    try {
+      await proService.deleteProfessional(editingProId);
+      
+      // Cleanup image if it was on Supabase
+      if (newPro.image && newPro.image.includes('supabase.co')) {
+        try {
+          let pathToDelete = null;
+          if (newPro.image.includes('/public/images/')) {
+            pathToDelete = newPro.image.split('/public/images/')[1];
+          } else if (newPro.image.includes('/images/')) {
+            const parts = newPro.image.split('/images/');
+            pathToDelete = parts[parts.length - 1];
+          }
+          if (pathToDelete) {
+             pathToDelete = pathToDelete.split('?')[0];
+             await storageService.deleteFile('images', pathToDelete);
+          }
+        } catch (e) {
+          console.warn('Failed to delete storage image during pro deletion:', e);
+        }
+      }
+
+      setMsg({ type: 'success', text: 'Professional successfully deleted and archived!' });
+      
+      if (onRefetchPros) {
+        await onRefetchPros();
+      }
+      await fetchCompletedPros();
+      
+      setTimeout(() => {
+        setActiveTab('completed');
+        setEditingProId(null);
+        setNewPro({
+          name: '',
+          company_name: '',
+          category: '',
+          rating: 5,
+          reviews_count: 0,
+          languages: [],
+          image: '',
+          bio: '',
+          phone: '',
+          email: '',
+          website: '',
+          instagram: '',
+          location: '',
+          lat: 0,
+          lng: 0
+        });
+        setPreviewUrl(null);
+        setMsg(null);
+      }, 1500);
+    } catch (error: any) {
+      console.error("Error deleting professional:", error);
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred during deletion.';
+      setMsg({ type: 'error', text: errorMessage });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const initiateDelete = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setShowConfirmModal(true);
+  };
+
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="max-w-4xl mx-auto px-6 py-12 text-left"
-    >
+    <div className="max-w-4xl mx-auto px-4 md:px-6 py-8 md:py-12 text-left w-full overflow-x-hidden">
       <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-6">
         <div className="space-y-1">
-           <h2 className="text-2xl font-medium font-display text-brand-navy flex items-center gap-2">
-             <ShieldCheck className="w-8 h-8 text-brand-blue" />
+           <h2 className="text-xl md:text-2xl font-medium font-display text-brand-navy flex items-center gap-2">
+             <ShieldCheck className="w-6 h-6 md:w-8 md:h-8 text-brand-blue" />
              Admin Dashboard
            </h2>
-           <h3 className="text-slate-500 font-medium tracking-tight">Review recommendations and manage professionals.</h3>
+           <h3 className="text-sm md:text-base text-slate-500 font-medium tracking-tight">Review recommendations and manage professionals.</h3>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-2xl self-start">
-          <button 
-            onClick={() => setActiveTab('recommendations')}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
-              activeTab === 'recommendations' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
-            )}
-          >
-            Recommendations
-          </button>
-          <button 
-            onClick={() => {
-              setActiveTab('add_pro');
-              setActiveRecId(null);
-              setEditingProId(null);
-              setSelectedFile(null);
-              setNewPro({
-                name: '',
-                company_name: '',
-                category: '',
-                rating: 5,
-                reviews_count: 0,
-                languages: [],
-                image: '',
-                bio: '',
-                phone: '',
-                email: '',
-                website: '',
-                instagram: '',
-                location: '',
-                lat: 0,
-                lng: 0
-              });
-              setPreviewUrl(null);
-            }}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
-              activeTab === 'add_pro' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
-            )}
-          >
-            Add Pro
-          </button>
-          <button 
-            onClick={() => {
-              setActiveTab('completed');
-              setActiveRecId(null);
-              setEditingProId(null);
-              setSelectedFile(null);
-            }}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
-              activeTab === 'completed' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
-            )}
-          >
-            Completed
-          </button>
-          <button 
-            onClick={() => {
-              setActiveTab('refused');
-              setActiveRecId(null);
-              setEditingProId(null);
-              setSelectedFile(null);
-            }}
-            className={cn(
-              "px-4 py-2 rounded-xl text-xs font-medium uppercase tracking-widest transition-all",
-              activeTab === 'refused' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
-            )}
-          >
-            Refused
-          </button>
+        <div className="flex bg-slate-100 p-1 rounded-2xl self-start overflow-x-auto no-scrollbar max-w-full">
+          <div className="flex shrink-0">
+            <button 
+              onClick={() => setActiveTab('recommendations')}
+              className={cn(
+                "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
+                activeTab === 'recommendations' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              Recs
+            </button>
+            <button 
+              onClick={() => {
+                setActiveTab('add_pro');
+                setActiveRecId(null);
+                setEditingProId(null);
+                setSelectedFile(null);
+                setNewPro({
+                  name: '',
+                  company_name: '',
+                  category: '',
+                  rating: 5,
+                  reviews_count: 0,
+                  languages: [],
+                  image: '',
+                  bio: '',
+                  phone: '',
+                  email: '',
+                  website: '',
+                  instagram: '',
+                  location: '',
+                  lat: 0,
+                  lng: 0
+                });
+                setPreviewUrl(null);
+              }}
+              className={cn(
+                "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
+                activeTab === 'add_pro' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              Add Pro
+            </button>
+            <button 
+              onClick={() => {
+                setActiveTab('completed');
+                setActiveRecId(null);
+                setEditingProId(null);
+                setSelectedFile(null);
+              }}
+              className={cn(
+                "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
+                activeTab === 'completed' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              Active
+            </button>
+            <button 
+              onClick={() => {
+                setActiveTab('refused');
+                setActiveRecId(null);
+                setEditingProId(null);
+                setSelectedFile(null);
+              }}
+              className={cn(
+                "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
+                activeTab === 'refused' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+              )}
+            >
+              Refused
+            </button>
+          </div>
         </div>
       </div>
 
@@ -2515,36 +2618,38 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
           ) : (
             <div className="space-y-8">
               {/* Processed Summary Line */}
-              <div className="flex items-center gap-4 px-4 py-3 bg-slate-50 rounded-2xl border border-slate-100">
-                <div className="flex -space-x-2">
-                  <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border-2 border-white">
-                    <Clock className="w-4 h-4 text-slate-400" />
+              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                <div className="flex items-center gap-4 w-full sm:w-auto">
+                  <div className="flex -space-x-2">
+                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border-2 border-white">
+                      <Clock className="w-4 h-4 text-slate-400" />
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center border-2 border-white">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                    </div>
+                    <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center border-2 border-white">
+                      <X className="w-4 h-4 text-rose-500" />
+                    </div>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center border-2 border-white">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center border-2 border-white">
-                    <X className="w-4 h-4 text-rose-500" />
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-slate-700 tracking-tight">
+                      {recommendations.filter(r => r.status && r.status !== 'pending').length} Processed
+                    </p>
+                    <p className="text-[10px] text-slate-400 font-medium tracking-tight">
+                      Check tabs for details.
+                    </p>
                   </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-xs font-bold text-slate-700 tracking-tight">
-                    {recommendations.filter(r => r.status && r.status !== 'pending').length} Processed Recommendations
-                  </p>
-                  <p className="text-[10px] text-slate-400 font-medium tracking-tight">
-                    Check Completed or Refused tabs to see details.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
+                <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
+                  <div className="flex-1 sm:flex-none flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
                     <span className="text-xs font-black text-slate-400">{recommendations.filter(r => r.status === 'pending' || !r.status).length}</span>
                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Pending</span>
                   </div>
-                  <div className="flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
+                  <div className="flex-1 sm:flex-none flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
                     <span className="text-xs font-black text-emerald-500">{recommendations.filter(r => r.status === 'validated').length}</span>
                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Added</span>
                   </div>
-                  <div className="flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
+                  <div className="flex-1 sm:flex-none flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
                     <span className="text-xs font-black text-rose-500">{recommendations.filter(r => r.status === 'refused').length}</span>
                     <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Refused</span>
                   </div>
@@ -2594,8 +2699,8 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
           )}
         </div>
       ) : activeTab === 'add_pro' ? (
-        <form onSubmit={handleAddPro} className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-xl space-y-8">
-          <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-[32px] border border-dashed border-slate-200 gap-4 mb-8">
+        <form onSubmit={handleAddPro} className="bg-white p-5 md:p-8 rounded-[32px] md:rounded-[40px] border border-slate-100 shadow-xl space-y-6 md:space-y-8">
+          <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-[32px] border border-dashed border-slate-200 gap-4">
             <div className="relative group">
               <div className="w-32 h-32 rounded-full bg-white border-4 border-white shadow-xl overflow-hidden flex items-center justify-center">
                 {previewUrl ? (
@@ -2743,20 +2848,34 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
             />
           </div>
 
-          <button 
-            type="submit"
-            disabled={isSubmitting}
-            className="w-full h-14 bg-brand-navy text-white rounded-2xl font-semibold uppercase tracking-wider shadow-lg shadow-brand-navy/10 hover:bg-brand-blue transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98] text-xs"
-          >
-            {isSubmitting ? (
-              <Loader2 className="w-5 h-5 animate-spin" />
-            ) : (
-              <>
-                {editingProId ? <Edit2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                {editingProId ? 'Update Professional' : 'Add Professional to App'}
-              </>
+          <div className="flex flex-col gap-3">
+            <button 
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full h-14 bg-brand-navy text-white rounded-2xl font-semibold uppercase tracking-wider shadow-lg shadow-brand-navy/10 hover:bg-brand-blue transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98] text-xs"
+            >
+              {isSubmitting ? (
+                <Loader2 className="w-5 h-5 animate-spin" />
+              ) : (
+                <>
+                  {editingProId ? <Edit2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  {editingProId ? 'Update Professional' : 'Add Professional to App'}
+                </>
+              )}
+            </button>
+
+            {editingProId && (
+              <button
+                type="button"
+                disabled={isSubmitting}
+                onClick={initiateDelete}
+                className="w-full h-14 bg-rose-50 text-rose-600 rounded-2xl font-bold uppercase tracking-wider hover:bg-rose-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98] text-xs"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Professional
+              </button>
             )}
-          </button>
+          </div>
         </form>
       ) : (
         <div className="space-y-6">
@@ -2772,34 +2891,36 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
           <div className="grid gap-4">
             {completedPros.length > 0 ? (
               completedPros.map((pro) => (
-                <div key={pro.id} className="bg-white p-6 rounded-3xl border border-slate-100 flex items-center justify-between">
+                <div key={pro.id} className="bg-white p-4 md:p-6 rounded-3xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex items-center gap-4">
-                    <img src={pro.image} alt="" className="w-12 h-12 rounded-full object-cover" />
-                    <div>
-                      <h4 className="font-bold text-slate-900">{pro.name}</h4>
-                      <p className="text-xs text-slate-500">{pro.category}</p>
+                    <img src={pro.image} alt="" className="w-12 h-12 rounded-full object-cover shadow-sm border border-slate-100" />
+                    <div className="min-w-0">
+                      <h4 className="font-bold text-slate-900 truncate">{pro.name}</h4>
+                      <p className="text-xs text-slate-500 truncate">{pro.category}</p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3 bg-slate-50 sm:bg-transparent p-2 sm:p-0 rounded-2xl sm:rounded-none">
                      <button 
                        onClick={() => handleStartEditing(pro)}
-                       className="p-2 bg-slate-50 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all"
+                       className="p-2.5 bg-white sm:bg-slate-50 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all shadow-sm sm:shadow-none"
                        title="Edit Profile"
                      >
                        <Edit2 className="w-4 h-4" />
                      </button>
-                     {pro.coordinates ? (
-                       <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-bold uppercase tracking-wider" title={`Lat: ${pro.coordinates.lat}, Lng: ${pro.coordinates.lng}`}>
-                         On Map
+                     <div className="flex flex-wrap gap-2 ml-auto sm:ml-0">
+                       {pro.coordinates ? (
+                         <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap" title={`Lat: ${pro.coordinates.lat}, Lng: ${pro.coordinates.lng}`}>
+                           On Map
+                         </span>
+                       ) : (
+                         <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                           No Coords
+                         </span>
+                       )}
+                       <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
+                         Live
                        </span>
-                     ) : (
-                       <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                         No Coordinates
-                       </span>
-                     )}
-                     <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-bold uppercase tracking-wider">
-                       Live
-                     </span>
+                     </div>
                   </div>
                 </div>
               ))
@@ -2811,7 +2932,56 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
           </div>
         </div>
       )}
-    </motion.div>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            onClick={() => setShowConfirmModal(false)}
+          >
+            <motion.div
+              initial={{ y: 100, scale: 0.9 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: 100, scale: 0.9 }}
+              className="w-full max-w-sm bg-white rounded-[32px] p-8 shadow-2xl overflow-hidden relative"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="absolute top-0 left-0 w-full h-1 bg-rose-500" />
+              <div className="flex flex-col items-center text-center space-y-4">
+                <div className="w-16 h-16 bg-rose-50 rounded-2xl flex items-center justify-center">
+                  <Trash2 className="w-8 h-8 text-rose-500" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-xl font-bold text-slate-900">Delete Confirmation</h3>
+                  <p className="text-sm text-slate-500 leading-relaxed">
+                    Are you sure you want to delete this professional? This action is irreversible and the profile will be archived.
+                  </p>
+                </div>
+                <div className="flex flex-col w-full gap-3 pt-4">
+                  <button
+                    onClick={() => handleDeletePro()}
+                    disabled={isSubmitting}
+                    className="w-full h-14 bg-rose-500 text-white rounded-2xl font-bold uppercase tracking-widest text-xs hover:bg-rose-600 transition-all shadow-lg shadow-rose-200 flex items-center justify-center gap-2"
+                  >
+                    {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : "Yes, delete permanently"}
+                  </button>
+                  <button
+                    onClick={() => setShowConfirmModal(false)}
+                    className="w-full h-14 bg-slate-100 text-slate-600 rounded-2xl font-bold uppercase tracking-widest text-xs hover:bg-slate-200 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }
 
@@ -2994,16 +3164,20 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
   );
 }
 
-function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string }) => void, allPros: Professional[], onAddPro: () => void, ads: Ad[], onSelectAd: (ad: Ad) => void, onSelectPost: (post: any) => void, scrollToTop?: () => void }) {
+function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop }: { 
+  onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string }) => void, 
+  allPros: Professional[], 
+  onAddPro: () => void, 
+  ads: Ad[], 
+  onSelectAd: (ad: Ad) => void, 
+  onSelectPost: (post: any) => void, 
+  scrollToTop?: () => void 
+}) {
   const feedRef = useRef<HTMLDivElement>(null);
+  const [localSearch, setLocalSearch] = useState('');
   
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="px-6 pt-12 pb-6 space-y-12 max-w-7xl mx-auto w-full"
-    >
+    <div className="px-6 pt-12 pb-6 space-y-12 max-w-7xl mx-auto w-full">
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 text-center md:text-left mb-12">
         <div className="space-y-1 flex flex-col items-center md:items-start">
@@ -3036,23 +3210,19 @@ function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost
               Find recommended <span className="text-brand-blue italic">Pros</span> near you.
             </h1>
             <p className="text-slate-500 text-base md:text-xl max-w-md leading-relaxed">
-              Connect with experts recommended by the community.
+              Connect with pros recommended by Unlock*d community.
             </p>
             
             <div 
-              className="relative group cursor-pointer w-full max-w-md" 
-              onClick={() => onNavigate('explore')}
+              className="w-full max-w-xl group relative cursor-pointer"
+              onClick={() => onNavigate('explore', { searchQuery: localSearch })}
             >
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-hover:text-brand-blue transition-colors" />
-              <input 
-                readOnly
-                placeholder="Search for a pro..."
-                className="w-full pl-12 pr-6 py-4 bg-white rounded-2xl border border-slate-100 text-slate-600 placeholder:text-slate-400 text-base hover:border-brand-blue/20 transition-all cursor-pointer shadow-sm group-hover:shadow-md outline-none"
-                onClick={() => onNavigate('explore')}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') onNavigate('explore');
-                }}
-              />
+              <div className="relative">
+                <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-hover:text-brand-blue transition-colors" />
+                <div className="w-full h-16 pl-14 pr-6 bg-white rounded-2xl border border-slate-100 shadow-[0_20px_50px_rgba(8,112,184,0.1)] group-hover:shadow-xl transition-all text-slate-300 font-medium text-lg flex items-center">
+                  Who are you looking for?
+                </div>
+              </div>
             </div>
           </div>
           
@@ -3096,7 +3266,7 @@ function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost
           <ExpertGuidesPartners onReadFullGuide={() => onNavigate('guides', { guideId: 'gs-1' })} />
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -3589,11 +3759,33 @@ function ProMap({ pros, onSelectPro, center }: { pros: Professional[], onSelectP
   );
 }
 
-function ExploreView({ allPros, onNavigate, initialProId, onModalClose, scrollToTop }: { allPros: Professional[], onNavigate: (view: View) => void, initialProId?: string | null, onModalClose?: () => void, scrollToTop?: () => void }) {
-  const [search, setSearch] = useState('');
-  const [deferredSearch, setDeferredSearch] = useState('');
+function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModalClose, scrollToTop }: { 
+  allPros: Professional[], 
+  onNavigate: (view: View) => void, 
+  initialProId?: string | null, 
+  initialSearch?: string | null,
+  onModalClose?: () => void, 
+  scrollToTop?: () => void 
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [search, setSearch] = useState(initialSearch || '');
+  const [deferredSearch, setDeferredSearch] = useState(initialSearch || '');
   const [isSearching, setIsSearching] = useState(false);
   const [isInputFocused, setIsInputFocused] = useState(false);
+
+  useEffect(() => {
+    // Auto focus on mount
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 100);
+  }, []);
+
+  useEffect(() => {
+    if (initialSearch !== null && initialSearch !== undefined) {
+      setSearch(initialSearch);
+      setDeferredSearch(initialSearch);
+    }
+  }, [initialSearch]);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -3708,12 +3900,7 @@ function ExploreView({ allPros, onNavigate, initialProId, onModalClose, scrollTo
     : allPros;
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -10 }}
-      className="p-4 md:p-12 pt-20 md:pt-24 space-y-16 pb-32 max-w-7xl mx-auto"
-    >
+    <div className="p-4 md:p-12 pt-20 md:pt-24 space-y-16 pb-32 max-w-7xl mx-auto">
       {/* Search & Filters */}
       <div className="space-y-16">
         <div className="max-w-4xl space-y-6">
@@ -3726,8 +3913,9 @@ function ExploreView({ allPros, onNavigate, initialProId, onModalClose, scrollTo
             <div className="relative flex-1">
               <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300 group-focus-within:text-brand-blue transition-colors" />
               <input 
+                ref={inputRef}
                 type="text" 
-                placeholder="Search by name, service or expertise..." 
+                placeholder="Who are you looking for? (name, service, expertise...)" 
                 className="w-full pl-12 pr-6 py-4 bg-white rounded-2xl border border-slate-100 focus:ring-4 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none shadow-sm hover:shadow-md transition-all text-slate-700 font-medium text-base placeholder:text-slate-300"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -3821,94 +4009,89 @@ function ExploreView({ allPros, onNavigate, initialProId, onModalClose, scrollTo
           </div>
           
           {/* Filters Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-8 pt-4">
+          <div className="grid grid-cols-2 gap-4 md:gap-x-8 md:gap-y-6 pt-4">
             {/* Profession Dropdown */}
-            <div className="space-y-4">
+            <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Filter className="w-3.5 h-3.5 text-brand-blue" /> Filter by Profession
+                <Filter className="w-3.5 h-3.5 text-brand-blue" /> Profession
               </label>
               <div className="relative">
                 <select
                   value={selectedCategory}
                   onChange={(e) => setSelectedCategory(e.target.value)}
-                  className="w-full pl-6 pr-12 py-4 bg-white rounded-2xl border border-slate-100 focus:ring-4 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none shadow-sm hover:shadow-md transition-all text-slate-700 font-bold text-sm appearance-none cursor-pointer"
+                  className="w-full pl-4 pr-10 py-3.5 bg-white rounded-2xl border border-slate-100 focus:ring-4 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none shadow-sm hover:shadow-md transition-all text-slate-700 font-bold text-xs md:text-sm appearance-none cursor-pointer"
                 >
                   <option value="All">All Professions</option>
                   {allProfessions.map(prof => (
                     <option key={prof} value={prof}>{prof}</option>
                   ))}
                 </select>
-                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                   <ChevronDown className="w-4 h-4 text-slate-400" />
                 </div>
               </div>
             </div>
 
             {/* Language Dropdown */}
-            <div className="space-y-4">
+            <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Globe className="w-3.5 h-3.5 text-brand-blue" /> Preferred Language
+                <Globe className="w-3.5 h-3.5 text-brand-blue" /> Language
               </label>
               <div className="relative">
                 <select
                   value={selectedLanguage}
                   onChange={(e) => setSelectedLanguage(e.target.value)}
-                  className="w-full pl-6 pr-12 py-4 bg-white rounded-2xl border border-slate-100 focus:ring-4 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none shadow-sm hover:shadow-md transition-all text-slate-700 font-bold text-sm appearance-none cursor-pointer"
+                  className="w-full pl-4 pr-10 py-3.5 bg-white rounded-2xl border border-slate-100 focus:ring-4 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none shadow-sm hover:shadow-md transition-all text-slate-700 font-bold text-xs md:text-sm appearance-none cursor-pointer"
                 >
                   {languages.map(lang => (
                     <option key={lang} value={lang}>{lang === 'All' ? 'All Languages' : lang}</option>
                   ))}
                 </select>
-                <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none">
+                <div className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
                   <ChevronDown className="w-4 h-4 text-slate-400" />
                 </div>
               </div>
             </div>
 
             {/* Distance Filter Slider */}
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
+            <div className="space-y-2">
+              <div className="flex justify-between items-center px-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                  <MapPin className="w-3.5 h-3.5 text-rose-500" /> Max Distance ({maxDistance === 'All' ? 'Everywhere' : `${maxDistance} km`})
+                  <MapPin className="w-3.5 h-3.5 text-rose-500" /> Distance ({maxDistance === 'All' ? '∞' : `${maxDistance}km`})
                 </label>
-                {maxDistance !== 'All' && (
-                  <button onClick={() => setMaxDistance('All')} className="text-[10px] font-bold text-brand-blue uppercase hover:underline">Reset</button>
-                )}
               </div>
-              <div className="px-4 py-6 bg-white rounded-2xl border border-slate-100 shadow-sm flex items-center gap-4">
-                <span className="text-[10px] font-bold text-slate-300">1km</span>
+              <div className="px-3 py-4 bg-white rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-2 min-h-[60px] md:min-h-[66px] justify-center">
                 <input
                   type="range"
-                  min="1"
+                  min="5"
                   max="50"
-                  step="1"
+                  step="5"
                   value={maxDistance === 'All' ? 50 : maxDistance}
-                  onChange={(e) => setMaxDistance(parseInt(e.target.value))}
-                  className="flex-1 h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                  onChange={(e) => setMaxDistance(Number(e.target.value))}
+                  className="w-full h-1.5 bg-slate-100 rounded-lg appearance-none cursor-pointer accent-rose-500"
                 />
-                <span className="text-[10px] font-bold text-slate-300">50km+</span>
               </div>
             </div>
 
             {/* Rating Filter stars */}
-            <div className="space-y-4">
+            <div className="space-y-2">
               <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                <Star className="w-3.5 h-3.5 text-brand-yellow" /> Minimum Rating
+                <Star className="w-3.5 h-3.5 text-brand-yellow" /> Rating
               </label>
-              <div className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-slate-100 shadow-sm h-[66px]">
-                <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2 px-3 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm min-h-[60px] md:min-h-[66px]">
+                <div className="flex items-center gap-0.5">
                   {[1, 2, 3, 4, 5].map((s) => (
                     <button
                       key={s}
                       onClick={() => setMinRating(minRating === s ? 0 : s)}
-                      className="p-0.5 transition-transform hover:scale-110 active:scale-95"
+                      className="p-0.5"
                     >
-                      <Star className={cn("w-6 h-6 transition-colors", s <= minRating ? "text-brand-yellow fill-brand-yellow" : "text-slate-200")} />
+                      <Star className={cn("w-4 h-4 md:w-5 md:h-5 transition-colors", s <= minRating ? "text-brand-yellow fill-brand-yellow" : "text-slate-200")} />
                     </button>
                   ))}
                 </div>
-                <span className="ml-auto text-xs font-bold text-slate-400">
-                  {minRating > 0 ? `${minRating}.0+` : 'Any rating'}
+                <span className="hidden sm:inline ml-auto text-[10px] font-bold text-slate-400">
+                  {minRating > 0 ? `${minRating}.0+` : 'Any'}
                 </span>
               </div>
             </div>
@@ -4000,14 +4183,14 @@ function ExploreView({ allPros, onNavigate, initialProId, onModalClose, scrollTo
                   <Search className="w-12 h-12 text-slate-200" />
                 </div>
                 <div className="space-y-2">
-                  <p className="text-slate-900 font-bold text-2xl">No top experts found</p>
-                  <p className="text-slate-400 max-w-md mx-auto font-medium">Try broadening your search or choosing a different community category.</p>
+                  <p className="text-slate-900 font-bold text-2xl">Your ideal pro is just a click away!</p>
+                  <p className="text-slate-400 max-w-md mx-auto font-medium">We didn't find a direct match this time, but the perfect connection is out there. Try shifting your filters or explore other categories!</p>
                 </div>
                 <button 
                   onClick={() => { setSearch(''); setSelectedCategory('All'); setSelectedLanguage('All'); setMaxDistance('All'); setMinRating(0); }}
                   className="mt-4 px-8 py-4 bg-brand-blue text-white rounded-2xl font-bold text-sm shadow-xl shadow-brand-blue/20 hover:scale-105 transition-all active:scale-95"
                 >
-                  Clear all filters
+                  Explore all pros
                 </button>
               </div>
             )}
@@ -4028,7 +4211,7 @@ function ExploreView({ allPros, onNavigate, initialProId, onModalClose, scrollTo
           />
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
@@ -4042,12 +4225,7 @@ function MessagesView({ scrollToTop }: { scrollToTop?: () => void }) {
   const chats: any[] = [];
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="max-w-6xl mx-auto w-full h-[calc(100vh-140px)] md:h-[calc(100vh-180px)] bg-white md:rounded-[32px] overflow-hidden shadow-sm border-x md:border border-slate-100 flex md:mt-4"
-    >
+    <div className="max-w-6xl mx-auto w-full h-[calc(100vh-140px)] md:h-[calc(100vh-180px)] bg-white md:rounded-[32px] overflow-hidden shadow-sm border-x md:border border-slate-100 flex md:mt-4">
       {/* Sidebar - Hidden on mobile if a chat is selected */}
       <div className={cn(
         "w-full md:w-80 border-r border-slate-100 flex flex-col transition-all duration-300",
@@ -4148,7 +4326,7 @@ function MessagesView({ scrollToTop }: { scrollToTop?: () => void }) {
           </div>
         ) }
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -4168,7 +4346,7 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
       className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] overflow-y-auto overscroll-contain flex justify-center" 
       onClick={onClose}
     >
-      <div className="min-h-full w-full max-w-2xl flex items-start p-4 md:p-8">
+      <div className="min-h-full w-full max-w-4xl flex items-start p-4 md:p-8">
         <motion.div 
           initial={{ scale: 0.95, opacity: 0, y: 30 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
@@ -4212,10 +4390,10 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            <div className="md:col-span-2 space-y-10">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            <div className="lg:col-span-2 space-y-10">
               {/* Direct Contact Bar - Vertical List */}
-              <div className="bg-slate-50/30 rounded-2xl p-4 space-y-3 max-w-sm">
+              <div className="bg-slate-50/30 rounded-2xl p-4 space-y-3 w-full">
                 {pro.phone && (
                   <div className="flex items-center gap-3">
                     <Phone className="w-3.5 h-3.5 text-cyan-500/70" />
@@ -4254,20 +4432,51 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
                     </a>
                   </div>
                 )}
-                {pro.location && (
+                {pro.languages && pro.languages.length > 0 && (
                   <div className="flex items-center gap-3">
-                    <MapPin className="w-3.5 h-3.5 text-rose-500/70" />
-                    <span className="text-sm text-slate-500">{pro.location}</span>
+                    <Globe className="w-3.5 h-3.5 text-slate-400/70" />
+                    <div className="flex flex-wrap gap-2">
+                      {pro.languages.map(lang => (
+                        <span key={lang} className="text-sm text-slate-500">{lang}</span>
+                      ))}
+                    </div>
                   </div>
                 )}
-                <div className="flex items-center gap-3">
-                  <Globe className="w-3.5 h-3.5 text-slate-400/70" />
-                  <div className="flex gap-2">
-                    {pro.languages.map(lang => (
-                      <span key={lang} className="text-sm text-slate-500">{lang}</span>
-                    ))}
+                {pro.location && (
+                  <div className="space-y-4">
+                    <a 
+                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pro.location)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-3 group/loc cursor-pointer"
+                    >
+                      <MapPin className="w-3.5 h-3.5 text-rose-500/70 group-hover/loc:text-rose-500 transition-colors" />
+                      <span className="text-sm text-slate-500 group-hover/loc:text-brand-blue transition-colors underline decoration-slate-200 underline-offset-4">{pro.location}</span>
+                    </a>
+                    
+                    {/* Mini Map */}
+                    {pro.coordinates && (
+                      <div className="w-full h-40 rounded-2xl overflow-hidden border border-slate-100 shadow-sm relative group/map">
+                        <Map
+                          defaultCenter={pro.coordinates}
+                          defaultZoom={15}
+                          gestureHandling={'none'}
+                          disableDefaultUI={true}
+                          mapId="MINI_MAP"
+                          className="w-full h-full"
+                        >
+                          <AdvancedMarker position={pro.coordinates}>
+                            <Pin background="#E11D48" glyphColor="#fff" borderColor="#BE123D" />
+                          </AdvancedMarker>
+                        </Map>
+                        <div className="absolute inset-0 bg-transparent cursor-pointer" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pro.location!)}`, '_blank')} />
+                        <div className="absolute bottom-2 right-2 px-2 py-1 bg-white/90 backdrop-blur-md rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 opacity-0 group-hover/map:opacity-100 transition-opacity">
+                          Click for directions
+                        </div>
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
               </div>
 
               <section className="space-y-4">
@@ -4284,7 +4493,7 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
             <div className="space-y-6">
               <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 space-y-6">
                 <div className="space-y-2">
-                  <h4 className="text-lg font-bold text-slate-900">Experience this expert?</h4>
+                  <h4 className="text-lg font-bold text-slate-900 leading-tight">Experience with this professional?</h4>
                   <p className="text-sm text-slate-500 font-medium">Help the community by sharing your feedback about {pro.name}.</p>
                 </div>
                 <button 
@@ -4333,12 +4542,7 @@ function EventsView({ initialEventId, onModalClose, scrollToTop }: { initialEven
   }, [initialEventId]);
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="p-6 space-y-6"
-    >
+    <div className="p-6 space-y-6">
       <div className="space-y-1">
         <h2 className="text-2xl font-bold font-display text-brand-navy">What's Up in Your City</h2>
         <p className="text-slate-500">Discover meetups and cultural events.</p>
@@ -4401,7 +4605,7 @@ function EventsView({ initialEventId, onModalClose, scrollToTop }: { initialEven
           />
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
@@ -4521,12 +4725,7 @@ function GuidesView({ initialGuideId, onModalClose, scrollToTop }: { initialGuid
 
   if (selectedCategory) {
     return (
-      <motion.div 
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -20 }}
-        className="p-6 space-y-8 pb-24"
-      >
+      <div className="p-6 space-y-8 pb-24">
         <button 
           onClick={() => {
             setSelectedCategory(null);
@@ -4594,17 +4793,12 @@ function GuidesView({ initialGuideId, onModalClose, scrollToTop }: { initialGuid
           isOpen={showArticleModal} 
           onClose={handleCloseModal} 
         />
-      </motion.div>
+      </div>
     );
   }
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="p-6 space-y-8 pb-24"
-    >
+    <div className="p-6 space-y-8 pb-24">
       <div className="space-y-2">
         <h2 className="text-3xl font-bold font-display text-brand-navy">Relocation Guides</h2>
         <p className="text-slate-500 text-lg">Everything you need to know to settle into your new life.</p>
@@ -4647,7 +4841,7 @@ function GuidesView({ initialGuideId, onModalClose, scrollToTop }: { initialGuid
           </div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -4657,12 +4851,7 @@ function MarketplaceView({ onAddAd, ads, onSelectAd, scrollToTop }: { onAddAd: (
   }, []);
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="min-h-[80vh] flex items-center justify-center p-6"
-    >
+    <div className="min-h-[80vh] flex items-center justify-center p-6">
       <div className="max-w-xl w-full text-center space-y-12">
         {/* Animated Icon Group */}
         <div className="relative inline-block">
@@ -4742,7 +4931,7 @@ function MarketplaceView({ onAddAd, ads, onSelectAd, scrollToTop }: { onAddAd: (
           </span>
         </motion.div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
@@ -4768,12 +4957,7 @@ function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, on
   ];
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="pb-12"
-    >
+    <div className="pb-12">
       {/* Profile Header */}
       <div className="flex flex-col items-center pt-8 pb-10 bg-white border-b border-slate-100">
         <div className="w-24 h-24 rounded-full bg-brand-blue/10 border-4 border-white shadow-sm overflow-hidden mb-4 flex items-center justify-center">
@@ -5000,7 +5184,7 @@ function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, on
           </ProfileSubPage>
         )}
       </AnimatePresence>
-    </motion.div>
+    </div>
   );
 }
 
