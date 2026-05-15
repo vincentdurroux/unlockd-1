@@ -3915,7 +3915,7 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
               <input 
                 ref={inputRef}
                 type="text" 
-                placeholder="Who are you looking for? (name, service, expertise...)" 
+                placeholder="Who are you looking for? (service, expertise...)" 
                 className="w-full pl-12 pr-6 py-4 bg-white rounded-2xl border border-slate-100 focus:ring-4 focus:ring-brand-blue/5 focus:border-brand-blue/20 outline-none shadow-sm hover:shadow-md transition-all text-slate-700 font-medium text-base placeholder:text-slate-300"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
