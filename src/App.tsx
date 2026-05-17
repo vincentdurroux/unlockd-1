@@ -277,7 +277,7 @@ interface Professional {
   company_name?: string;
   category: string;
   rating: number;
-  reviews_count?: number;
+  review_count?: number;
   languages: string[];
   image: string;
   bio: string;
@@ -518,6 +518,7 @@ export default function App() {
   const [initialEventId, setInitialEventId] = useState<string | null>(null);
   const [initialProId, setInitialProId] = useState<string | null>(null);
   const [initialGuideId, setInitialGuideId] = useState<string | null>(null);
+  const [initialChat, setInitialChat] = useState<any | null>(null);
   const [initialSearch, setInitialSearch] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useState<{ query: string; location: string; category: string; filters?: any }>({ query: '', location: '', category: 'All' });
 
@@ -1002,6 +1003,7 @@ export default function App() {
                     if (params?.proId) setInitialProId(params.proId);
                     if (params?.guideId) setInitialGuideId(params.guideId);
                     if (params?.searchQuery) setInitialSearch(params.searchQuery);
+                    if (params?.chat) setInitialChat(params.chat);
                     navigateTo(view);
                   }}
                   onAddPro={() => setShowAddPro(true)} 
@@ -1009,6 +1011,7 @@ export default function App() {
                   onSelectAd={setSelectedAd} 
                   onSelectPost={(post) => { setSelectedPost(post); navigateTo('community-thread'); }}
                   scrollToTop={scrollToTop}
+                  onProUpdate={refetchPros}
                 />
               )}
               {activeView === 'explore' && (
@@ -1022,6 +1025,7 @@ export default function App() {
                     setInitialSearch(null);
                   }}
                   scrollToTop={scrollToTop}
+                  onProUpdate={refetchPros}
                 />
               )}
               {activeView === 'events' && (
@@ -1064,7 +1068,12 @@ export default function App() {
                 />
               )}
               {activeView === 'messages' && (
-                <MessagesView key="messages" scrollToTop={scrollToTop} />
+                <MessagesView 
+                  key="messages" 
+                  scrollToTop={scrollToTop} 
+                  initialChat={initialChat}
+                  onClearInitial={() => setInitialChat(null)}
+                />
               )}
             </motion.div>
           </AnimatePresence>
@@ -1585,79 +1594,6 @@ export default function App() {
 
 // --- Components ---
 
-function ReviewModal({ pro, onClose, onSubmit }: { pro: any, onClose: () => void, onSubmit: (review: any) => void }) {
-  const [rating, setRating] = useState(0);
-  const [comment, setComment] = useState('');
-  const [hoveredRating, setHoveredRating] = useState(0);
-
-  return (
-    <div className="fixed inset-0 z-[110] overflow-y-auto no-scrollbar" onClick={onClose}>
-      <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-xl -z-10" />
-      <div className="min-h-full flex items-center justify-center p-4 py-12">
-        <motion.div 
-          initial={{ scale: 0.9, opacity: 0, y: 20 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          className="bg-white w-full max-w-md rounded-[32px] overflow-hidden shadow-2xl"
-          onClick={e => e.stopPropagation()}
-        >
-        <div className="p-8 space-y-8">
-          <div className="text-center space-y-2">
-            <h2 className="text-2xl font-bold text-slate-900">Leave a Review</h2>
-            <p className="text-sm text-slate-500">How was your experience with {pro.name}?</p>
-          </div>
-
-          <div className="flex justify-center gap-2">
-            {[1, 2, 3, 4, 5].map((star) => (
-              <button
-                key={star}
-                onMouseEnter={() => setHoveredRating(star)}
-                onMouseLeave={() => setHoveredRating(0)}
-                onClick={() => setRating(star)}
-                className="transition-transform active:scale-90"
-              >
-                <Star 
-                  className={cn(
-                    "w-10 h-10 transition-colors",
-                    (hoveredRating || rating) >= star ? "fill-amber-400 text-amber-400" : "text-slate-200"
-                  )} 
-                />
-              </button>
-            ))}
-          </div>
-
-          <div className="space-y-3">
-            <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Your Feedback</label>
-            <textarea 
-              placeholder="Write your review here..." 
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="w-full p-4 bg-slate-50 rounded-2xl border-none focus:ring-2 focus:ring-brand-blue outline-none h-32 text-sm font-medium resize-none" 
-            />
-          </div>
-
-          <div className="flex gap-3">
-            <button 
-              onClick={onClose}
-              className="flex-1 py-4 bg-slate-50 text-slate-600 rounded-2xl text-sm font-bold hover:bg-slate-100 transition-all"
-            >
-              Cancel
-            </button>
-            <button 
-              disabled={!rating || !comment.trim()}
-              onClick={() => onSubmit({ rating, comment })}
-              className="flex-1 py-4 bg-brand-blue text-white rounded-2xl text-sm font-bold shadow-lg shadow-brand-blue/20 active:scale-95 transition-all disabled:opacity-50"
-            >
-              Submit Review
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    </div>
-  </div>
-);
-}
-
 function AdDetailModal({ ad, onClose }: { ad: Ad | any, onClose: () => void }) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [direction, setDirection] = useState(0);
@@ -2158,8 +2094,8 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
     name: '',
     company_name: '',
     category: '',
-    rating: 5,
-    reviews_count: 0,
+    rating: 0,
+    review_count: 0,
     languages: [] as string[],
     image: '',
     bio: '',
@@ -2241,8 +2177,8 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
       name: pro.name || '',
       company_name: pro.company_name || '',
       category: categoryValue,
-      rating: pro.rating || 5,
-      reviews_count: pro.reviews_count || 0,
+      rating: pro.rating ?? 0,
+      review_count: pro.review_count || 0,
       languages: pro.languages || [],
       image: imageValue,
       bio: bioValue,
@@ -2329,8 +2265,8 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
         name: newPro.name,
         company_name: newPro.company_name,
         profession: newPro.category,
-        rating: newPro.rating || 4.8,
-        reviews_count: newPro.reviews_count || 0,
+        rating: newPro.rating || 0,
+        review_count: newPro.review_count || 0,
         languages: newPro.languages,
         image_url: imageUrl,
         image: imageUrl, // Add both for safety
@@ -2414,8 +2350,8 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
         name: '',
         company_name: '',
         category: '',
-        rating: 5,
-        reviews_count: 0,
+        rating: 0,
+        review_count: 0,
         languages: [],
         image: '',
         bio: '',
@@ -2482,8 +2418,8 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
           name: '',
           company_name: '',
           category: '',
-          rating: 5,
-          reviews_count: 0,
+          rating: 0,
+          review_count: 0,
           languages: [],
           image: '',
           bio: '',
@@ -2545,8 +2481,8 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
                   name: '',
                   company_name: '',
                   category: '',
-                  rating: 5,
-                  reviews_count: 0,
+                  rating: 0,
+                  review_count: 0,
                   languages: [],
                   image: '',
                   bio: '',
@@ -3164,14 +3100,15 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
   );
 }
 
-function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop }: { 
-  onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string }) => void, 
+function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop, onProUpdate }: { 
+  onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string, chat?: any }) => void, 
   allPros: Professional[], 
   onAddPro: () => void, 
   ads: Ad[], 
   onSelectAd: (ad: Ad) => void, 
   onSelectPost: (post: any) => void, 
-  scrollToTop?: () => void 
+  scrollToTop?: () => void,
+  onProUpdate?: () => void
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [localSearch, setLocalSearch] = useState('');
@@ -3545,7 +3482,7 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
   );
 }
 
-function HighlightCarousel({ onNavigate, allPros }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string }) => void, allPros: Professional[] }) {
+function HighlightCarousel({ onNavigate, allPros }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, chat?: any }) => void, allPros: Professional[] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const featuredPro = allPros.length > 0 ? allPros[0] : null;
 
@@ -3759,13 +3696,14 @@ function ProMap({ pros, onSelectPro, center }: { pros: Professional[], onSelectP
   );
 }
 
-function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModalClose, scrollToTop }: { 
+function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModalClose, scrollToTop, onProUpdate }: { 
   allPros: Professional[], 
-  onNavigate: (view: View) => void, 
+  onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string, chat?: any }) => void, 
   initialProId?: string | null, 
   initialSearch?: string | null,
   onModalClose?: () => void, 
-  scrollToTop?: () => void 
+  scrollToTop?: () => void,
+  onProUpdate?: () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState(initialSearch || '');
@@ -3802,6 +3740,16 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
   const [selectedLanguage, setSelectedLanguage] = useState('All');
   const [minRating, setMinRating] = useState(0);
   const [selectedPro, setSelectedPro] = useState<Professional | null>(null);
+
+  // Sync selectedPro with freshly fetched allPros to show updated ratings/counts in modal
+  useEffect(() => {
+    if (selectedPro) {
+      const updated = allPros.find(p => p.id === selectedPro.id);
+      if (updated) {
+        setSelectedPro(updated);
+      }
+    }
+  }, [allPros]);
 
   const allProfessions = useMemo(() => {
     return Array.from(new Set(allPros.map(p => p.category))).sort();
@@ -4151,7 +4099,11 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
                           <div className="flex items-center gap-1">
                             <Star className="w-3 h-3 text-brand-yellow fill-brand-yellow" />
                             <span className="text-xs font-normal text-slate-700">
-                              {pro.reviews_count && pro.reviews_count > 0 ? pro.rating : 'Not yet reviewed'}
+                              {pro.review_count && pro.review_count > 0 ? (
+                                <span className="flex items-center gap-1">
+                                  {pro.rating} <span className="text-slate-400 font-medium font-sans">({pro.review_count})</span>
+                                </span>
+                              ) : 'Not yet reviewed'}
                             </span>
                           </div>
                         </div>
@@ -4168,6 +4120,18 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
                             {lang}
                           </span>
                         ))}
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedPro(pro);
+                            // We could trigger the modal directly if we had a way to pass this state
+                            // but for now opening the ProDetail is standard.
+                          }}
+                          className="px-2 py-1 bg-brand-blue/5 text-brand-blue rounded-lg text-[10px] font-bold border border-brand-blue/10 hover:bg-brand-blue hover:text-white transition-all flex items-center gap-1"
+                        >
+                          <Star className="w-2.5 h-2.5" />
+                          Review
+                        </button>
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-300 uppercase tracking-widest">
                          <MapPin className="w-3 h-3" />
@@ -4208,6 +4172,7 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
               onModalClose?.();
             }} 
             onNavigate={onNavigate}
+            onProUpdate={onProUpdate}
           />
         )}
       </AnimatePresence>
@@ -4215,14 +4180,42 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
   );
 }
 
-function MessagesView({ scrollToTop }: { scrollToTop?: () => void }) {
+function MessagesView({ scrollToTop, initialChat, onClearInitial }: { scrollToTop?: () => void, initialChat?: any, onClearInitial?: () => void }) {
   const [selectedChat, setSelectedChat] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (initialChat) {
+      setSelectedChat(initialChat);
+      onClearInitial?.();
+    }
+  }, [initialChat]);
 
   useEffect(() => {
     scrollToTop?.();
   }, [selectedChat]);
 
-  const chats: any[] = [];
+  const chats: any[] = initialChat ? [initialChat] : [
+    {
+      id: 'c1',
+      name: 'Maria Gonzalez',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop',
+      online: true,
+      time: '2m ago',
+      lastMsg: 'Hello! I saw your review. Do you recommend this pro?'
+    },
+    {
+      id: 'c2',
+      name: 'Julien Bernard',
+      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop',
+      online: false,
+      time: '1h ago',
+      lastMsg: 'Thanks for the info!'
+    }
+  ];
+
+  const displayChats = initialChat && !chats.find(c => c.id === initialChat.id) 
+    ? [initialChat, ...chats] 
+    : chats;
 
   return (
     <div className="max-w-6xl mx-auto w-full h-[calc(100vh-140px)] md:h-[calc(100vh-180px)] bg-white md:rounded-[32px] overflow-hidden shadow-sm border-x md:border border-slate-100 flex md:mt-4">
@@ -4235,7 +4228,7 @@ function MessagesView({ scrollToTop }: { scrollToTop?: () => void }) {
           <h2 className="text-xl font-semibold text-slate-900 font-display">Messages</h2>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {chats.map(chat => (
+          {displayChats.map(chat => (
             <div 
               key={chat.id}
               onClick={() => setSelectedChat(chat)}
@@ -4330,14 +4323,54 @@ function MessagesView({ scrollToTop }: { scrollToTop?: () => void }) {
   );
 }
 
-function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professional, onClose: () => void, onNavigate: (view: View) => void }) {
+function ProfessionalDetailView({ pro, onClose, onNavigate, onProUpdate }: { pro: Professional, onClose: () => void, onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string, chat?: any }) => void, onProUpdate?: () => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [isWritingReview, setIsWritingReview] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [hoveredRating, setHoveredRating] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [localReviews, setLocalReviews] = useState<any[]>([]);
+  
+  const [displayReviewCount, setDisplayReviewCount] = useState(pro.review_count || 0);
+  const [displayRating, setDisplayRating] = useState(pro.rating || 0);
+
+  // Sync local display states when props change (from parent refetch)
+  useEffect(() => {
+    setDisplayReviewCount(pro.review_count || 0);
+    setDisplayRating(pro.rating || 0);
+  }, [pro.review_count, pro.rating]);
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = 0;
     }
+    
+    // Reset writing state when switching pros
+    setIsWritingReview(false);
+    setRating(0);
+    setComment('');
+    // Fetch real reviews from Supabase
+    const fetchReviews = async () => {
+      try {
+        const reviews = await proService.getTestimonies(pro.id);
+        if (reviews && reviews.length > 0) {
+          setLocalReviews(reviews.map((r: any) => ({
+            id: r.id,
+            author: r.author,
+            rating: r.rating,
+            comment: r.comment,
+            date: new Date(r.created_at).toLocaleDateString()
+          })));
+        } else {
+          setLocalReviews([]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch reviews:', err);
+      }
+    };
+
+    fetchReviews();
   }, [pro.id]);
 
   return (
@@ -4384,7 +4417,7 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
                 </div>
                 <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 text-slate-600 rounded-xl font-medium border border-slate-100">
                   <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                  <span>{pro.reviews_count && pro.reviews_count > 0 ? pro.rating : 'Not yet reviewed'}</span>
+                  <span>{displayReviewCount > 0 ? `${displayRating} (${displayReviewCount})` : 'Not yet reviewed'}</span>
                 </div>
               </div>
             </div>
@@ -4488,42 +4521,186 @@ function ProfessionalDetailView({ pro, onClose, onNavigate }: { pro: Professiona
                   {pro.bio}
                 </p>
               </section>
+
+              {/* Reviews Section */}
+              <section className="space-y-6 pt-6">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-2 h-2 rounded-full bg-brand-yellow" />
+                    <h4 className="text-lg font-semibold text-slate-900 font-display uppercase tracking-wider">Testimonials</h4>
+                  </div>
+                  <span className="text-sm font-bold text-slate-400">{localReviews.length} reviews</span>
+                </div>
+
+                <div className="space-y-4">
+                  {localReviews.length > 0 ? (
+                    localReviews.map((review) => (
+                      <div key={review.id} className="bg-slate-50/50 rounded-2xl p-6 border border-slate-100 space-y-3">
+                        <div className="flex justify-between items-start">
+                          <div className="space-y-1">
+                            <div 
+                              className="font-bold text-slate-900 flex items-center gap-2 cursor-pointer hover:text-brand-blue transition-colors group/author"
+                              onClick={() => {
+                                onNavigate('messages', { 
+                                  chat: {
+                                    id: `chat-${review.id}`,
+                                    name: review.author,
+                                    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(review.author)}&background=random`,
+                                    online: true,
+                                    time: 'just now',
+                                    lastMsg: `Hello ${review.author}! I saw your review for ${pro.name}.`
+                                  }
+                                });
+                                onClose();
+                              }}
+                            >
+                              {review.author}
+                              <div className="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center group-hover/author:bg-brand-blue/10 transition-colors">
+                                <MessageSquare className="w-3.5 h-3.5 text-slate-400 group-hover/author:text-brand-blue transition-all" />
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3, 4, 5].map((s) => (
+                                <Star key={s} className={cn("w-3 h-3", s <= review.rating ? "text-brand-yellow fill-brand-yellow" : "text-slate-200")} />
+                              ))}
+                            </div>
+                          </div>
+                          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest">{review.date}</span>
+                        </div>
+                        <p className="text-sm text-slate-600 leading-relaxed italic">"{review.comment}"</p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-12 text-center space-y-3 bg-slate-50/30 rounded-3xl border border-dashed border-slate-200">
+                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center mx-auto shadow-sm">
+                        <MessageCircle className="w-6 h-6 text-slate-200" />
+                      </div>
+                      <p className="text-sm text-slate-400 font-medium italic">No testimonials yet. Be the first to share your experience!</p>
+                    </div>
+                  )}
+                </div>
+              </section>
             </div>
 
             <div className="space-y-6">
-              <div className="bg-slate-50 rounded-3xl p-8 border border-slate-100 space-y-6">
+              <motion.div 
+                layout
+                className="bg-slate-50 rounded-3xl p-8 border border-slate-100 space-y-6 overflow-hidden"
+              >
                 <div className="space-y-2">
                   <h4 className="text-lg font-bold text-slate-900 leading-tight">Experience with this professional?</h4>
                   <p className="text-sm text-slate-500 font-medium">Help the community by sharing your feedback about {pro.name}.</p>
                 </div>
-                <button 
-                  onClick={() => setShowReviewModal(true)}
-                  className="w-full py-4 bg-white text-slate-900 border-2 border-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 hover:text-white transition-all active:scale-95 shadow-sm"
-                >
-                  <Star className="w-4 h-4" />
-                  Write a Review
-                </button>
-              </div>
+
+                <AnimatePresence mode="wait">
+                  {!isWritingReview ? (
+                    <motion.button 
+                      key="write-btn"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      onClick={() => setIsWritingReview(true)}
+                      className="w-full py-4 bg-white text-slate-900 border-2 border-slate-900 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-slate-900 hover:text-white transition-all active:scale-95 shadow-sm"
+                    >
+                      <Star className="w-4 h-4" />
+                      Write a Review
+                    </motion.button>
+                  ) : (
+                    <motion.div 
+                      key="review-form"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="space-y-6"
+                    >
+                      <div className="flex justify-center gap-2 py-2">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <button
+                            key={star}
+                            onMouseEnter={() => setHoveredRating(star)}
+                            onMouseLeave={() => setHoveredRating(0)}
+                            onClick={() => setRating(star)}
+                            className="transition-transform active:scale-90"
+                          >
+                            <Star 
+                              className={cn(
+                                "w-8 h-8 transition-colors",
+                                (hoveredRating || rating) >= star ? "fill-amber-400 text-amber-400" : "text-slate-200"
+                              )} 
+                            />
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="space-y-3">
+                        <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Your Feedback</label>
+                        <textarea 
+                          placeholder="Tell us about your experience..." 
+                          value={comment}
+                          onChange={(e) => setComment(e.target.value)}
+                          className="w-full p-4 bg-white rounded-2xl border border-slate-200 focus:ring-2 focus:ring-brand-blue outline-none h-32 text-sm font-medium resize-none shadow-inner" 
+                        />
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button 
+                          onClick={() => setIsWritingReview(false)}
+                          className="flex-1 py-3 bg-white text-slate-500 rounded-xl text-sm font-bold border border-slate-200 hover:bg-slate-50 transition-all"
+                        >
+                          Cancel
+                        </button>
+                        <button 
+                          disabled={!rating || !comment.trim() || isSubmitting}
+                          onClick={async () => {
+                            setIsSubmitting(true);
+                            try {
+                              await proService.addTestimony({
+                                pro_id: pro.id,
+                                author: 'Vincent D.',
+                                rating: rating,
+                                comment: comment
+                              });
+
+                              const newReview = {
+                                id: Date.now().toString(),
+                                author: 'Vincent D.',
+                                rating: rating,
+                                comment: comment,
+                                date: 'just now'
+                              };
+                              
+                              const newCount = displayReviewCount + 1;
+                              const newRating = Number(((displayRating * displayReviewCount + rating) / newCount).toFixed(1));
+                              
+                              setLocalReviews(prev => [newReview, ...prev]);
+                              setDisplayReviewCount(newCount);
+                              setDisplayRating(newRating);
+                              setIsWritingReview(false);
+                              setRating(0);
+                              setComment('');
+                              
+                              // Trigger parent refetch to update main list
+                              if (onProUpdate) onProUpdate();
+                            } catch (err) {
+                              console.error('Failed to submit review:', err);
+                              alert('Error posting review. Make sure Supabase table is created.');
+                            } finally {
+                              setIsSubmitting(false);
+                            }
+                          }}
+                          className="flex-1 py-3 bg-brand-blue text-white rounded-xl text-sm font-bold shadow-lg shadow-brand-blue/20 active:scale-95 transition-all disabled:opacity-50"
+                        >
+                          {isSubmitting ? 'Posting...' : 'Post Review'}
+                        </button>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
             </div>
           </div>
         </div>
       </motion.div>
-
-      <AnimatePresence>
-        {showReviewModal && (
-          <ReviewModal 
-            pro={pro} 
-            onClose={() => setShowReviewModal(false)}
-            onSubmit={async (reviewData) => {
-              console.log('[Review] Submitting review:', reviewData);
-              // Since reviews_count column might be missing, this is just a simulation 
-              // unless we actually had a reviews table.
-              alert('Review submitted! In a full implementation, this would update the pro\'s rating and reviews count.');
-              setShowReviewModal(false);
-            }} 
-          />
-        )}
-      </AnimatePresence>
     </div>
   </div>
 );

@@ -6,7 +6,8 @@ export interface SupabaseProfessional {
   company_name?: string;
   profession: string;
   rating: number;
-  reviews_count?: number;
+  reviews_count?: number; // Kept for type compatibility if needed
+  review_count?: number;
   languages: string[];
   image_url: string;
   description: string;
@@ -76,7 +77,8 @@ export const proService = {
         category: item.profession || item.category, // Map profession to category for frontend compatibility
         image: item.image_url || item.image, // Map image_url or image for frontend compatibility
         bio: item.description || item.bio, // Map description to bio for frontend compatibility
-        reviews_count: item.reviews_count || 0, // Fallback to 0 if column is missing
+        rating: item.rating ?? 0,
+        review_count: item.review_count ?? item.reviews_count ?? 0, // Fallback to 0 if column is missing
         languages: typeof item.languages === 'string' ? JSON.parse(item.languages) : item.languages || [],
         coordinates: (typeof lat === 'number' && typeof lng === 'number' && !isNaN(lat) && !isNaN(lng) && (Math.abs(lat) > 0.0001 || Math.abs(lng) > 0.0001)) ? 
           { lat, lng } : null
@@ -228,6 +230,8 @@ export const proService = {
     }
 
     setIfChanged('rating', pro.rating, existingRecord.rating);
+    setIfChanged('review_count', pro.review_count || pro.reviews_count, existingRecord.review_count);
+    setIfChanged('reviews_count', pro.review_count || pro.reviews_count, existingRecord.reviews_count);
     setIfChanged('languages', Array.isArray(pro.languages) ? pro.languages : [], existingRecord.languages);
     
     // Image mapping
@@ -331,7 +335,7 @@ export const proService = {
         company_name: proToArchive.company_name,
         profession: proToArchive.profession || proToArchive.category,
         rating: proToArchive.rating,
-        reviews_count: proToArchive.reviews_count,
+        review_count: proToArchive.review_count ?? proToArchive.reviews_count,
         languages: proToArchive.languages,
         image_url: proToArchive.image_url || proToArchive.image,
         description: proToArchive.description || proToArchive.bio,
@@ -411,6 +415,92 @@ export const proService = {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
+    return data;
+  },
+
+  async addTestimony(testimony: {
+    pro_id: string | number;
+    author: string;
+    rating: number;
+    comment: string;
+  }) {
+    if (!isSupabaseConfigured) return null;
+
+    const payload = {
+      pro_id: String(testimony.pro_id),
+      author: testimony.author,
+      rating: testimony.rating,
+      comment: testimony.comment,
+    };
+
+    const { data, error } = await supabase
+      .from('testimonies')
+      .insert([payload])
+      .select();
+
+    if (error) {
+      console.error('Error adding testimony:', error);
+      throw error;
+    }
+
+    // Increment reviews_count for the professional and update average rating
+    try {
+      // Normalize ID for fetching
+      let finalProId = testimony.pro_id;
+      if (typeof finalProId === 'string' && /^\d+$/.test(finalProId)) {
+        finalProId = parseInt(finalProId, 10);
+      }
+
+      const { data: proData, error: fetchError } = await supabase
+        .from('professionals')
+        .select('*')
+        .eq('id', finalProId)
+        .maybeSingle();
+      
+      if (proData && !fetchError) {
+        const count = proData.review_count ?? proData.reviews_count ?? 0;
+        const currentRating = proData.rating ?? 0;
+        const newCount = count + 1;
+        const newRating = Number(((currentRating * count + testimony.rating) / newCount).toFixed(1));
+
+        const updates: any = { rating: newRating };
+        
+        // Handle both plural and singular names based on what exists in the record
+        if ('review_count' in proData) {
+          updates.review_count = newCount;
+        }
+        if ('reviews_count' in proData) {
+          updates.reviews_count = newCount;
+        }
+
+        console.log('[proService] Updating pro stats:', updates);
+        await supabase
+          .from('professionals')
+          .update(updates)
+          .eq('id', finalProId);
+      }
+    } catch (e) {
+      console.warn('Could not update pro stats:', e);
+    }
+
+    return data;
+  },
+
+  async getTestimonies(proId: string | number) {
+    if (!isSupabaseConfigured) return [];
+
+    const { data, error } = await supabase
+      .from('testimonies')
+      .select('*')
+      .eq('pro_id', String(proId))
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      // If table doesn't exist yet, we'll get an error. 
+      // We handle it gracefully by returning an empty array.
+      console.warn('Error fetching testimonies (table might not exist yet):', error);
+      return [];
+    }
     return data;
   },
 
