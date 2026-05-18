@@ -85,6 +85,7 @@ import { GoogleGenAI } from "@google/genai";
 import { APIProvider, Map, AdvancedMarker, Pin, useMapsLibrary } from '@vis.gl/react-google-maps';
 import { useProfessionals } from './hooks/useProfessionals';
 import { proService } from './services/proService';
+import { eventService } from './services/eventService';
 
 const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 
@@ -294,10 +295,15 @@ interface Event {
   title: string;
   date: string;
   time: string;
+  start_date?: string;
+  end_date?: string;
+  start_time?: string;
+  end_time?: string;
   location: string;
   category: string;
   image: string;
-  attendees: number;
+  description?: string;
+  coordinates?: { lat: number, lng: number };
 }
 
 interface GuideStep {
@@ -321,7 +327,41 @@ interface Classified {
 
 const MOCK_PROS: Professional[] = [];
 
-const MOCK_EVENTS: Event[] = [];
+const MOCK_EVENTS: Event[] = [
+  {
+    id: '1',
+    title: 'Beach Cleanup & Meetup',
+    date: 'MAY 20',
+    time: '10:00 AM',
+    location: 'Playa de la Malvarrosa, Valencia',
+    category: 'Community',
+    image: 'https://images.unsplash.com/photo-1595113330231-5098c99ee602?auto=format&fit=crop&q=80&w=800',
+    description: 'Join us for our monthly beach cleanup at Malvarrosa! We\'ll meet near the main promenade to pick up plastic and trash, then head to a nearby chiringuito for drinks and networking. It\'s a great way to give back to the city and meet fellow expats.',
+    coordinates: { lat: 39.4795, lng: -0.3235 }
+  },
+  {
+    id: '2',
+    title: 'Tech Expat Networking',
+    date: 'JUN 05',
+    time: '07:00 PM',
+    location: 'Lanzadera, Marina de Valencia',
+    category: 'Networking',
+    image: 'https://images.unsplash.com/photo-1540575861501-7ad058133a31?auto=format&fit=crop&q=80&w=800',
+    description: 'Connect with Valencia\'s booming tech scene at Lanzadera. This networking event is specifically for tech professionals, entrepreneurs, and digital nomads who have recently moved to the city. Complementary drinks and appetizers provided.',
+    coordinates: { lat: 39.4628, lng: -0.3262 }
+  },
+  {
+    id: '3',
+    title: 'Spanish Tapas Workshop',
+    date: 'JUN 12',
+    time: '06:30 PM',
+    location: 'Mercado Central, Valencia',
+    category: 'Culture',
+    image: 'https://images.unsplash.com/photo-1515442261904-6c301f1b008a?auto=format&fit=crop&q=80&w=800',
+    description: 'Master the art of Spanish tapas in this hands-on workshop right in the heart of Valencia\'s historic Central Market. You\'ll learn to prepare five classic dishes and pair them with local wines. Small group setting for personal attention.',
+    coordinates: { lat: 39.4735, lng: -0.3788 }
+  }
+];
 
 const MOCK_FEED: any[] = [];
 
@@ -534,6 +574,7 @@ export default function App() {
   const [selectedAd, setSelectedAd] = useState<Ad | any>(null);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
   const [ads, setAds] = useState<Ad[]>([]);
+  const [events, setEvents] = useState<Event[]>(MOCK_EVENTS);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
   const [city, setCity] = useState('Valencia');
@@ -648,6 +689,15 @@ export default function App() {
 
   useEffect(() => {
     fetchAds();
+    const loadEvents = async () => {
+      try {
+        const data = await eventService.getEvents();
+        if (data && data.length > 0) setEvents(data);
+      } catch (err) {
+        console.error('Failed to load events:', err);
+      }
+    };
+    loadEvents();
   }, []);
 
   const fetchAds = async () => {
@@ -987,19 +1037,16 @@ export default function App() {
         <motion.div
           className="min-h-full w-full max-w-full"
         >
-          <AnimatePresence mode="wait" custom={direction}>
+          <AnimatePresence custom={direction}>
             <motion.div
               key={activeView}
               custom={direction}
-              initial={{ opacity: 0, x: direction * 50, scale: 0.98 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: direction * -50, scale: 1.02 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, position: 'absolute', top: 0, left: 0, width: '100%' }}
               transition={{ 
-                type: "spring", 
-                stiffness: 300, 
-                damping: 30, 
-                mass: 0.8,
-                opacity: { duration: 0.3 }
+                duration: 0.12,
+                ease: "linear"
               }}
               className="min-h-full w-full"
             >
@@ -1007,6 +1054,7 @@ export default function App() {
                 <HomeView 
                   key="home" 
                   allPros={allPros}
+                  events={events}
                   onNavigate={handleNavigate}
                   onAddPro={() => setShowAddPro(true)} 
                   ads={ads} 
@@ -1094,9 +1142,10 @@ export default function App() {
             >
               <div className="min-h-full flex items-start justify-center p-4">
                 <motion.div 
-                  initial={{ scale: 0.9, opacity: 0, y: 20 }}
-                  animate={{ scale: 1, opacity: 1, y: 0 }}
-                  exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 15 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
                   className="bg-white w-full max-w-lg rounded-[32px] overflow-hidden relative shadow-2xl flex flex-col my-auto border border-slate-100"
                   onClick={e => e.stopPropagation()}
                 >
@@ -1268,9 +1317,10 @@ export default function App() {
             >
               <div className="min-h-full flex items-start justify-center p-4 sm:p-6">
                 <motion.div 
-                  initial={{ scale: 0.9, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0.9, opacity: 0 }}
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 15 }}
+                  transition={{ duration: 0.2, ease: "easeOut" }}
                   className="bg-white w-full max-w-lg rounded-[32px] p-6 sm:p-8 space-y-6 relative shadow-2xl my-auto"
                   onClick={e => e.stopPropagation()}
                 >
@@ -1656,9 +1706,10 @@ function AdDetailModal({ ad, onClose }: { ad: Ad | any, onClose: () => void }) {
           className="fixed inset-0 bg-slate-900/80 backdrop-blur-md -z-10"
         />
         <motion.div
-          initial={{ scale: 0.9, opacity: 0 }}
-          animate={{ scale: 1, opacity: 1 }}
-          exit={{ scale: 0.9, opacity: 0 }}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 15 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           className="relative w-full max-w-lg bg-white rounded-[32px] overflow-hidden shadow-2xl flex flex-col my-auto"
           onClick={e => e.stopPropagation()}
         >
@@ -2070,7 +2121,8 @@ function RecommendationItem({ rec, onUpdate, onStartAdding }: { rec: any, onUpda
 function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, onRefetchPros?: () => Promise<void> }) {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'recommendations' | 'add_pro' | 'completed' | 'refused'>('recommendations');
+  const [dashboardCategory, setDashboardCategory] = useState<'pros' | 'events'>('pros');
+  const [activeTab, setActiveTab] = useState<'recommendations' | 'add_pro' | 'add_event' | 'completed' | 'refused'>('recommendations');
   const [activeRecId, setActiveRecId] = useState<string | null>(null);
   const [editingProId, setEditingProId] = useState<string | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -2107,6 +2159,20 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
     website: '',
     instagram: '',
     location: '',
+    lat: 0,
+    lng: 0
+  });
+
+  const [newEvent, setNewEvent] = useState({
+    title: '',
+    start_date: '',
+    end_date: '',
+    start_time: '',
+    end_time: '',
+    location: '',
+    category: '',
+    description: '',
+    image: '',
     lat: 0,
     lng: 0
   });
@@ -2196,6 +2262,74 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
     setPreviewUrl(imageValue || null);
     setActiveTab('add_pro');
     scrollToTop?.();
+  };
+
+  const handleAddEvent = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    setMsg(null);
+
+    try {
+      let imageUrl = newEvent.image;
+      if (selectedFile) {
+        let fileToUpload = await compressImage(selectedFile);
+        const path = `events/${Date.now()}_${selectedFile.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
+        imageUrl = await storageService.uploadFile('images', path, fileToUpload);
+      }
+
+      // Geocoding for event
+      let finalLat = newEvent.lat;
+      let finalLng = newEvent.lng;
+      if ((finalLat === 0 || finalLng === 0) && newEvent.location) {
+        try {
+          const geocoder = new google.maps.Geocoder();
+          const result = await new Promise<google.maps.GeocoderResult[]>((resolve, reject) => {
+            geocoder.geocode({ address: newEvent.location }, (results, status) => {
+              if (status === 'OK' && results && results.length > 0) resolve(results);
+              else reject(status);
+            });
+          });
+          finalLat = result[0].geometry.location.lat();
+          finalLng = result[0].geometry.location.lng();
+        } catch (e) {
+          console.error('Event geocoding failed', e);
+        }
+      }
+
+      await eventService.createEvent({
+        ...newEvent,
+        start_date: newEvent.start_date,
+        end_date: newEvent.end_date,
+        start_time: newEvent.start_time,
+        end_time: newEvent.end_time,
+        date: newEvent.start_date, // for legacy use
+        time: newEvent.start_time, // for legacy use
+        image_url: imageUrl,
+        coordinates: { lat: finalLat, lng: finalLng }
+      });
+
+      setMsg({ type: 'success', text: 'Event created successfully!' });
+      setNewEvent({
+        title: '',
+        start_date: '',
+        end_date: '',
+        start_time: '',
+        end_time: '',
+        location: '',
+        category: '',
+        description: '',
+        image: '',
+        lat: 0,
+        lng: 0
+      });
+      setSelectedFile(null);
+      setPreviewUrl(null);
+    } catch (err) {
+      console.error(err);
+      setMsg({ type: 'error', text: 'Failed to create event.' });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleAddPro = async (e: React.FormEvent) => {
@@ -2460,82 +2594,129 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
              <ShieldCheck className="w-6 h-6 md:w-8 md:h-8 text-brand-blue" />
              Admin Dashboard
            </h2>
-           <h3 className="text-sm md:text-base text-slate-500 font-medium tracking-tight">Review recommendations and manage professionals.</h3>
+           <h3 className="text-sm md:text-base text-slate-500 font-medium tracking-tight">
+             {dashboardCategory === 'pros' ? 'Review recommendations and manage professionals.' : 'Manage community events and meetups.'}
+           </h3>
         </div>
 
-        <div className="flex bg-slate-100 p-1 rounded-2xl self-start overflow-x-auto no-scrollbar max-w-full">
-          <div className="flex shrink-0">
-            <button 
-              onClick={() => setActiveTab('recommendations')}
-              className={cn(
-                "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
-                activeTab === 'recommendations' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
-              )}
-            >
-              Recs
-            </button>
-            <button 
-              onClick={() => {
-                setActiveTab('add_pro');
-                setActiveRecId(null);
-                setEditingProId(null);
-                setSelectedFile(null);
-                setNewPro({
-                  name: '',
-                  company_name: '',
-                  category: '',
-                  rating: 0,
-                  review_count: 0,
-                  languages: [],
-                  image: '',
-                  bio: '',
-                  phone: '',
-                  email: '',
-                  website: '',
-                  instagram: '',
-                  location: '',
-                  lat: 0,
-                  lng: 0
-                });
-                setPreviewUrl(null);
-              }}
-              className={cn(
-                "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
-                activeTab === 'add_pro' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
-              )}
-            >
-              Add Pro
-            </button>
-            <button 
-              onClick={() => {
-                setActiveTab('completed');
-                setActiveRecId(null);
-                setEditingProId(null);
-                setSelectedFile(null);
-              }}
-              className={cn(
-                "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
-                activeTab === 'completed' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
-              )}
-            >
-              Active
-            </button>
-            <button 
-              onClick={() => {
-                setActiveTab('refused');
-                setActiveRecId(null);
-                setEditingProId(null);
-                setSelectedFile(null);
-              }}
-              className={cn(
-                "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
-                activeTab === 'refused' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
-              )}
-            >
-              Refused
-            </button>
-          </div>
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl self-start border border-slate-200/50">
+          <button 
+            onClick={() => {
+              setDashboardCategory('pros');
+              setActiveTab('recommendations');
+            }}
+            className={cn(
+              "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+              dashboardCategory === 'pros' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <Users className="w-4 h-4" />
+            Pros
+          </button>
+          <button 
+            onClick={() => {
+              setDashboardCategory('events');
+              setActiveTab('add_event');
+            }}
+            className={cn(
+              "px-5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-widest transition-all flex items-center gap-2",
+              dashboardCategory === 'events' ? "bg-white text-emerald-500 shadow-sm" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <Calendar className="w-4 h-4" />
+            Events
+          </button>
         </div>
+      </div>
+
+      <div className="mb-8">
+        {dashboardCategory === 'pros' ? (
+          <div className="flex items-center gap-1 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6">
+            <div className="flex shrink-0 gap-1 bg-slate-100 p-1 rounded-2xl">
+              <button 
+                onClick={() => setActiveTab('recommendations')}
+                className={cn(
+                  "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
+                  activeTab === 'recommendations' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+                )}
+              >
+                Recs
+              </button>
+              <button 
+                onClick={() => {
+                  setActiveTab('add_pro');
+                  setActiveRecId(null);
+                  setEditingProId(null);
+                  setSelectedFile(null);
+                  setNewPro({
+                    name: '',
+                    company_name: '',
+                    category: '',
+                    rating: 0,
+                    review_count: 0,
+                    languages: [],
+                    image: '',
+                    bio: '',
+                    phone: '',
+                    email: '',
+                    website: '',
+                    instagram: '',
+                    location: '',
+                    lat: 0,
+                    lng: 0
+                  });
+                  setPreviewUrl(null);
+                }}
+                className={cn(
+                  "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
+                  activeTab === 'add_pro' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+                )}
+              >
+                Add Pro
+              </button>
+              <button 
+                onClick={() => {
+                  setActiveTab('completed');
+                  setActiveRecId(null);
+                  setEditingProId(null);
+                  setSelectedFile(null);
+                }}
+                className={cn(
+                  "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
+                  activeTab === 'completed' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+                )}
+              >
+                Active
+              </button>
+              <button 
+                onClick={() => {
+                  setActiveTab('refused');
+                  setActiveRecId(null);
+                  setEditingProId(null);
+                  setSelectedFile(null);
+                }}
+                className={cn(
+                  "px-3 md:px-4 py-2 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap",
+                  activeTab === 'refused' ? "bg-white text-brand-blue shadow-sm" : "text-slate-400 hover:text-slate-600"
+                )}
+              >
+                Refused
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-1 overflow-x-auto pb-4 no-scrollbar -mx-6 px-6">
+            <div className="flex shrink-0 gap-1 bg-slate-100 p-1 rounded-2xl">
+              <button 
+                className={cn(
+                  "px-6 py-2.5 rounded-xl text-[10px] md:text-xs font-bold uppercase tracking-widest transition-all whitespace-nowrap bg-white text-emerald-500 shadow-sm"
+                )}
+              >
+                Add New Event
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {msg && (
@@ -2548,60 +2729,50 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
         </div>
       )}
 
-      {activeTab === 'recommendations' ? (
+      {dashboardCategory === 'pros' ? (
         <div className="space-y-4">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+          {activeTab === 'recommendations' && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-8">
+                  {recommendations.filter(r => r.status === 'pending' || !r.status).length === 0 ? (
+                    <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
+                      <p className="text-slate-400 font-medium">No pending recommendations.</p>
+                    </div>
+                  ) : (
+                    recommendations
+                      .filter(r => r.status === 'pending' || !r.status)
+                      .map((rec) => (
+                        <RecommendationItem 
+                          key={rec.id} 
+                          rec={rec} 
+                          onUpdate={fetchRecommendations} 
+                          onStartAdding={handleStartAdding}
+                        />
+                      ))
+                  )}
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="space-y-8">
-              {/* Processed Summary Line */}
-              <div className="flex flex-col sm:flex-row items-center gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                <div className="flex items-center gap-4 w-full sm:w-auto">
-                  <div className="flex -space-x-2">
-                    <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center border-2 border-white">
-                      <Clock className="w-4 h-4 text-slate-400" />
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center border-2 border-white">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center border-2 border-white">
-                      <X className="w-4 h-4 text-rose-500" />
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-slate-700 tracking-tight">
-                      {recommendations.filter(r => r.status && r.status !== 'pending').length} Processed
-                    </p>
-                    <p className="text-[10px] text-slate-400 font-medium tracking-tight">
-                      Check tabs for details.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
-                  <div className="flex-1 sm:flex-none flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
-                    <span className="text-xs font-black text-slate-400">{recommendations.filter(r => r.status === 'pending' || !r.status).length}</span>
-                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Pending</span>
-                  </div>
-                  <div className="flex-1 sm:flex-none flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
-                    <span className="text-xs font-black text-emerald-500">{recommendations.filter(r => r.status === 'validated').length}</span>
-                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Added</span>
-                  </div>
-                  <div className="flex-1 sm:flex-none flex flex-col items-center px-3 py-1 bg-white rounded-xl border border-slate-100 min-w-[60px]">
-                    <span className="text-xs font-black text-rose-500">{recommendations.filter(r => r.status === 'refused').length}</span>
-                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">Refused</span>
-                  </div>
-                </div>
-              </div>
+          )}
 
-              {recommendations.filter(r => r.status === 'pending' || !r.status).length === 0 ? (
+          {activeTab === 'refused' && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {loading ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : recommendations.filter(r => r.status === 'refused').length === 0 ? (
                 <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
-                  <p className="text-slate-400 font-medium">No pending recommendations.</p>
+                  <p className="text-slate-400 font-medium">No refused recommendations.</p>
                 </div>
               ) : (
                 recommendations
-                  .filter(r => r.status === 'pending' || !r.status)
+                  .filter(r => r.status === 'refused')
                   .map((rec) => (
                     <RecommendationItem 
                       key={rec.id} 
@@ -2613,262 +2784,337 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
               )}
             </div>
           )}
-        </div>
-      ) : activeTab === 'refused' ? (
-        <div className="space-y-4">
-          {loading ? (
-            <div className="flex justify-center py-12">
-              <div className="w-8 h-8 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+
+          {activeTab === 'add_pro' && (
+            <div className="animate-in fade-in zoom-in-95 duration-300">
+              <form onSubmit={handleAddPro} className="bg-white p-5 md:p-8 rounded-[32px] md:rounded-[40px] border border-slate-100 shadow-xl space-y-6 md:space-y-8">
+                <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-[32px] border border-dashed border-slate-200 gap-4">
+                  <div className="relative group">
+                    <div className="w-32 h-32 rounded-full bg-white border-4 border-white shadow-xl overflow-hidden flex items-center justify-center">
+                      {previewUrl ? (
+                        <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="flex flex-col items-center justify-center text-slate-300">
+                          <Camera className="w-10 h-10 mb-1" />
+                          <span className="text-[10px] font-semibold uppercase tracking-widest">No Image</span>
+                        </div>
+                      )}
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="absolute bottom-0 right-0 p-3 bg-brand-blue text-white rounded-full shadow-lg hover:bg-brand-navy transition-all active:scale-95"
+                    >
+                      <Plus className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="text-center">
+                    <h4 className="font-semibold font-display text-brand-navy text-sm uppercase tracking-widest">Profile Photo</h4>
+                    <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">Click the button to upload a file</p>
+                  </div>
+                  <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Full Name</label>
+                    <input 
+                      required
+                      value={newPro.name}
+                      onChange={e => setNewPro({...newPro, name: e.target.value})}
+                      placeholder=""
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Company Name</label>
+                    <input 
+                      value={newPro.company_name}
+                      onChange={e => setNewPro({...newPro, company_name: e.target.value})}
+                      placeholder=""
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Profession</label>
+                    <input 
+                      required
+                      value={newPro.category}
+                      onChange={e => setNewPro({...newPro, category: e.target.value})}
+                      placeholder=""
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Email</label>
+                    <input 
+                      type="email"
+                      value={newPro.email}
+                      onChange={e => setNewPro({...newPro, email: e.target.value})}
+                      placeholder=""
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Phone</label>
+                    <input 
+                      type="tel"
+                      value={newPro.phone}
+                      onChange={e => setNewPro({...newPro, phone: e.target.value})}
+                      placeholder=""
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Location Address</label>
+                    <AddressAutocomplete 
+                      value={newPro.location}
+                      onChange={val => setNewPro({...newPro, location: val, lat: 0, lng: 0})}
+                      onSelect={(location, lat, lng) => {
+                        setNewPro({...newPro, location, lat, lng});
+                      }}
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Website</label>
+                    <input 
+                      value={newPro.website}
+                      onChange={e => setNewPro({...newPro, website: e.target.value})}
+                      placeholder=""
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Instagram (@handle)</label>
+                    <input 
+                      value={newPro.instagram}
+                      onChange={e => setNewPro({...newPro, instagram: e.target.value})}
+                      placeholder=""
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">About (Bio)</label>
+                  <textarea 
+                    required
+                    value={newPro.bio}
+                    onChange={e => setNewPro({...newPro, bio: e.target.value})}
+                    placeholder="Short professional biography..."
+                    className="w-full h-24 bg-slate-50 border border-slate-100 rounded-2xl p-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all resize-none font-display text-sm leading-relaxed"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  <button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full h-14 bg-brand-navy text-white rounded-2xl font-semibold uppercase tracking-wider shadow-lg shadow-brand-navy/10 hover:bg-brand-blue transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98] text-xs"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <>
+                        {editingProId ? <Edit2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                        {editingProId ? 'Update Professional' : 'Add Professional to App'}
+                      </>
+                    )}
+                  </button>
+
+                  {editingProId && (
+                    <button
+                      type="button"
+                      disabled={isSubmitting}
+                      onClick={initiateDelete}
+                      className="w-full h-14 bg-rose-50 text-rose-600 rounded-2xl font-bold uppercase tracking-wider hover:bg-rose-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98] text-xs"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      Delete Professional
+                    </button>
+                  )}
+                </div>
+              </form>
             </div>
-          ) : recommendations.filter(r => r.status === 'refused').length === 0 ? (
-            <div className="bg-slate-50 rounded-[32px] p-12 text-center border-2 border-dashed border-slate-200">
-              <p className="text-slate-400 font-medium">No refused recommendations.</p>
-            </div>
-          ) : (
-            recommendations
-              .filter(r => r.status === 'refused')
-              .map((rec) => (
-                <RecommendationItem 
-                  key={rec.id} 
-                  rec={rec} 
-                  onUpdate={fetchRecommendations} 
-                  onStartAdding={handleStartAdding}
-                />
-              ))
           )}
-        </div>
-      ) : activeTab === 'add_pro' ? (
-        <form onSubmit={handleAddPro} className="bg-white p-5 md:p-8 rounded-[32px] md:rounded-[40px] border border-slate-100 shadow-xl space-y-6 md:space-y-8">
-          <div className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-[32px] border border-dashed border-slate-200 gap-4">
-            <div className="relative group">
-              <div className="w-32 h-32 rounded-full bg-white border-4 border-white shadow-xl overflow-hidden flex items-center justify-center">
-                {previewUrl ? (
-                  <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+
+          {activeTab === 'completed' && (
+            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-slate-900 font-display">Active Professionals</h3>
+                <button 
+                  onClick={() => setActiveTab('add_pro')}
+                  className="text-xs font-bold text-brand-blue hover:underline"
+                >
+                  + Add another
+                </button>
+              </div>
+              <div className="grid gap-4">
+                {completedPros.length > 0 ? (
+                  completedPros.map((pro) => (
+                    <div key={pro.id} className="bg-white p-4 md:p-6 rounded-3xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <img src={pro.image} alt="" className="w-12 h-12 rounded-full object-cover shadow-sm border border-slate-100" />
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-900 truncate">{pro.name}</h4>
+                          <p className="text-xs text-slate-500 truncate">{pro.category}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 sm:gap-3 bg-slate-50 sm:bg-transparent p-2 sm:p-0 rounded-2xl sm:rounded-none">
+                         <button 
+                           onClick={() => handleStartEditing(pro)}
+                           className="p-2.5 bg-white sm:bg-slate-50 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all shadow-sm sm:shadow-none"
+                           title="Edit Profile"
+                         >
+                           <Edit2 className="w-4 h-4" />
+                         </button>
+                      </div>
+                    </div>
+                  ))
                 ) : (
-                  <div className="flex flex-col items-center justify-center text-slate-300">
-                    <Camera className="w-10 h-10 mb-1" />
-                    <span className="text-[10px] font-semibold uppercase tracking-widest">No Image</span>
+                  <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                    <p className="text-slate-400 text-sm font-medium">No professionals added yet.</p>
                   </div>
                 )}
               </div>
-              <button 
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="absolute bottom-0 right-0 p-3 bg-brand-blue text-white rounded-full shadow-lg hover:bg-brand-navy transition-all active:scale-95"
-              >
-                <Plus className="w-5 h-5" />
-              </button>
             </div>
-            <div className="text-center">
-              <h4 className="font-semibold font-display text-brand-navy text-sm uppercase tracking-widest">Profile Photo</h4>
-              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">Click the button to upload a file</p>
-            </div>
-            <input 
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept="image/*"
-              className="hidden"
-            />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Full Name</label>
-              <input 
-                required
-                value={newPro.name}
-                onChange={e => setNewPro({...newPro, name: e.target.value})}
-                placeholder=""
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Company Name</label>
-              <input 
-                value={newPro.company_name}
-                onChange={e => setNewPro({...newPro, company_name: e.target.value})}
-                placeholder=""
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Profession</label>
-              <input 
-                required
-                value={newPro.category}
-                onChange={e => setNewPro({...newPro, category: e.target.value})}
-                placeholder=""
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Email</label>
-              <input 
-                type="email"
-                value={newPro.email}
-                onChange={e => setNewPro({...newPro, email: e.target.value})}
-                placeholder=""
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Phone</label>
-              <input 
-                type="tel"
-                value={newPro.phone}
-                onChange={e => setNewPro({...newPro, phone: e.target.value})}
-                placeholder=""
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Location Address</label>
-              <AddressAutocomplete 
-                value={newPro.location}
-                onChange={val => setNewPro({...newPro, location: val, lat: 0, lng: 0})}
-                onSelect={(location, lat, lng) => {
-      console.log('Address selected:', location, lat, lng);
-      setNewPro({...newPro, location, lat, lng});
-    }}
-              />
-              {newPro.lat !== 0 && newPro.lng !== 0 ? (
-                <p className="text-[10px] text-emerald-500 font-medium px-1 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" />
-                  Coordinates captured: {newPro.lat.toFixed(4)}, {newPro.lng.toFixed(4)}
-                </p>
-              ) : newPro.location.length > 5 ? (
-                <p className="text-[10px] text-amber-500 font-medium px-1">
-                  ⚠️ Please select from the dropdown to capture map coordinates
-                </p>
-              ) : null}
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Website</label>
-              <input 
-                value={newPro.website}
-                onChange={e => setNewPro({...newPro, website: e.target.value})}
-                placeholder=""
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
-              />
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Instagram (@handle)</label>
-              <input 
-                value={newPro.instagram}
-                onChange={e => setNewPro({...newPro, instagram: e.target.value})}
-                placeholder=""
-                className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all font-display text-sm"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">Languages Spoken</label>
-            <LanguageSelector 
-              selected={newPro.languages}
-              onToggle={lang => {
-                const langs = newPro.languages.includes(lang)
-                  ? newPro.languages.filter(l => l !== lang)
-                  : [...newPro.languages, lang];
-                setNewPro({...newPro, languages: langs});
-              }}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-medium uppercase tracking-widest text-slate-400 px-1">About (Bio)</label>
-            <textarea 
-              required
-              value={newPro.bio}
-              onChange={e => setNewPro({...newPro, bio: e.target.value})}
-              placeholder="Short professional biography..."
-              className="w-full h-24 bg-slate-50 border border-slate-100 rounded-2xl p-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all resize-none font-display text-sm leading-relaxed"
-            />
-          </div>
-
-          <div className="flex flex-col gap-3">
-            <button 
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full h-14 bg-brand-navy text-white rounded-2xl font-semibold uppercase tracking-wider shadow-lg shadow-brand-navy/10 hover:bg-brand-blue transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98] text-xs"
-            >
-              {isSubmitting ? (
-                <Loader2 className="w-5 h-5 animate-spin" />
-              ) : (
-                <>
-                  {editingProId ? <Edit2 className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                  {editingProId ? 'Update Professional' : 'Add Professional to App'}
-                </>
-              )}
-            </button>
-
-            {editingProId && (
-              <button
-                type="button"
-                disabled={isSubmitting}
-                onClick={initiateDelete}
-                className="w-full h-14 bg-rose-50 text-rose-600 rounded-2xl font-bold uppercase tracking-wider hover:bg-rose-100 transition-all disabled:opacity-50 flex items-center justify-center gap-2 active:scale-[0.98] text-xs"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete Professional
-              </button>
-            )}
-          </div>
-        </form>
+          )}
+        </div>
       ) : (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-slate-900 font-display">Active Professionals</h3>
-            <button 
-              onClick={() => setActiveTab('add_pro')}
-              className="text-xs font-bold text-brand-blue hover:underline"
-            >
-              + Add another
-            </button>
-          </div>
-          <div className="grid gap-4">
-            {completedPros.length > 0 ? (
-              completedPros.map((pro) => (
-                <div key={pro.id} className="bg-white p-4 md:p-6 rounded-3xl border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-center gap-4">
-                    <img src={pro.image} alt="" className="w-12 h-12 rounded-full object-cover shadow-sm border border-slate-100" />
-                    <div className="min-w-0">
-                      <h4 className="font-bold text-slate-900 truncate">{pro.name}</h4>
-                      <p className="text-xs text-slate-500 truncate">{pro.category}</p>
-                    </div>
+        <div className="space-y-4">
+          {activeTab === 'add_event' && (
+            <form onSubmit={handleAddEvent} className="bg-white p-5 md:p-8 rounded-[32px] md:rounded-[40px] border border-emerald-100 shadow-xl space-y-6 md:space-y-8 animate-in fade-in zoom-in-95 duration-300">
+              <div className="flex flex-col items-center justify-center p-6 bg-emerald-50/30 rounded-[32px] border border-dashed border-emerald-100 gap-4">
+                <div className="relative group">
+                  <div className="w-32 h-32 rounded-full bg-white border-4 border-white shadow-xl overflow-hidden flex items-center justify-center">
+                    {previewUrl ? (
+                      <img src={previewUrl} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-300">
+                        <Camera className="w-10 h-10 mb-1" />
+                        <span className="text-[10px] font-semibold uppercase tracking-widest">No Image</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2 sm:gap-3 bg-slate-50 sm:bg-transparent p-2 sm:p-0 rounded-2xl sm:rounded-none">
-                     <button 
-                       onClick={() => handleStartEditing(pro)}
-                       className="p-2.5 bg-white sm:bg-slate-50 text-slate-400 hover:text-brand-blue hover:bg-brand-blue/5 rounded-xl transition-all shadow-sm sm:shadow-none"
-                       title="Edit Profile"
-                     >
-                       <Edit2 className="w-4 h-4" />
-                     </button>
-                     <div className="flex flex-wrap gap-2 ml-auto sm:ml-0">
-                       {pro.coordinates ? (
-                         <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap" title={`Lat: ${pro.coordinates.lat}, Lng: ${pro.coordinates.lng}`}>
-                           On Map
-                         </span>
-                       ) : (
-                         <span className="px-3 py-1 bg-amber-50 text-amber-600 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
-                           No Coords
-                         </span>
-                       )}
-                       <span className="px-3 py-1 bg-emerald-50 text-emerald-600 rounded-full text-[9px] md:text-[10px] font-bold uppercase tracking-wider whitespace-nowrap">
-                         Live
-                       </span>
-                     </div>
-                  </div>
+                  <button 
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute bottom-0 right-0 p-3 bg-emerald-500 text-white rounded-full shadow-lg hover:bg-emerald-600 transition-all active:scale-95"
+                  >
+                    <Plus className="w-5 h-5" />
+                  </button>
                 </div>
-              ))
-            ) : (
-              <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
-                <p className="text-slate-400 text-sm font-medium">No professionals added yet.</p>
+                <div className="text-center">
+                  <h4 className="font-semibold font-display text-emerald-600 text-sm uppercase tracking-widest">Event Poster</h4>
+                  <p className="text-[10px] text-slate-400 font-medium uppercase tracking-tight">Image for the event card</p>
+                </div>
+                <input 
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept="image/*"
+                  className="hidden"
+                />
               </div>
-            )}
-          </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="md:col-span-2 space-y-1.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Event Title</label>
+                  <input 
+                    required
+                    value={newEvent.title}
+                    onChange={e => setNewEvent({...newEvent, title: e.target.value})}
+                    placeholder="Ex: Beach Cleanup Valencia"
+                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                  />
+                </div>
+                
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Start Date</label>
+                  <input 
+                    required
+                    type="date"
+                    value={newEvent.start_date}
+                    onChange={e => setNewEvent({...newEvent, start_date: e.target.value})}
+                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">End Date (Optional)</label>
+                  <input 
+                    type="date"
+                    value={newEvent.end_date}
+                    onChange={e => setNewEvent({...newEvent, end_date: e.target.value})}
+                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Start Time (Optional)</label>
+                  <input 
+                    type="time"
+                    value={newEvent.start_time}
+                    onChange={e => setNewEvent({...newEvent, start_time: e.target.value})}
+                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">End Time (Optional)</label>
+                  <input 
+                    type="time"
+                    value={newEvent.end_time}
+                    onChange={e => setNewEvent({...newEvent, end_time: e.target.value})}
+                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Category</label>
+                  <input 
+                    required
+                    value={newEvent.category}
+                    onChange={e => setNewEvent({...newEvent, category: e.target.value})}
+                    placeholder="Community"
+                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Location Address</label>
+                  <AddressAutocomplete 
+                    value={newEvent.location}
+                    onChange={val => setNewEvent({...newEvent, location: val})}
+                    onSelect={(location, lat, lng) => setNewEvent({...newEvent, location, lat, lng})}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Description</label>
+                <textarea 
+                  required
+                  rows={4}
+                  value={newEvent.description}
+                  onChange={e => setNewEvent({...newEvent, description: e.target.value})}
+                  className="w-full bg-slate-50 border border-slate-100 rounded-2xl p-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm resize-none"
+                />
+              </div>
+
+              <button 
+                disabled={isSubmitting}
+                type="submit"
+                className="w-full py-4 bg-emerald-500 text-white rounded-2xl font-bold uppercase shadow-xl shadow-emerald-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+              >
+                {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <Calendar className="w-5 h-5" />}
+                {isSubmitting ? 'Creating Event...' : 'Create Event'}
+              </button>
+            </form>
+          )}
         </div>
       )}
 
@@ -3103,9 +3349,10 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
   );
 }
 
-function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop, onProUpdate }: { 
+function HomeView({ onNavigate, allPros, events, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop, onProUpdate }: { 
   onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string, chat?: any }) => void, 
   allPros: Professional[], 
+  events: Event[],
   onAddPro: () => void, 
   ads: Ad[], 
   onSelectAd: (ad: Ad) => void, 
@@ -3155,11 +3402,11 @@ function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost
             
             <div 
               className="w-full max-w-xl group relative cursor-pointer"
-              onClick={() => onNavigate('explore', { searchQuery: localSearch })}
+              onClick={() => onNavigate('explore')}
             >
               <div className="relative">
                 <Search className="absolute left-6 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-300 group-hover:text-brand-blue transition-colors" />
-                <div className="w-full h-16 pl-14 pr-6 bg-white rounded-2xl border border-slate-100 shadow-[0_20px_50px_rgba(8,112,184,0.1)] group-hover:shadow-xl transition-all text-slate-300 font-medium text-lg flex items-center">
+                <div className="w-full h-16 pl-14 pr-6 bg-slate-50/50 rounded-2xl border border-slate-100 shadow-[0_10px_30px_rgba(8,112,184,0.05)] group-hover:shadow-lg group-hover:bg-white transition-all text-slate-400 font-medium text-lg flex items-center">
                   Who are you looking for?
                 </div>
               </div>
@@ -3191,7 +3438,7 @@ function HomeView({ onNavigate, allPros, onAddPro, ads, onSelectAd, onSelectPost
           </div>
           
           <div className="relative group flex-1 flex flex-col min-h-[250px]">
-            <HighlightCarousel onNavigate={onNavigate} allPros={allPros} />
+            <HighlightCarousel onNavigate={onNavigate} allPros={allPros} events={events} />
           </div>
         </div>
 
@@ -3485,11 +3732,24 @@ function ExpertGuidesPartners({ onReadFullGuide }: { onReadFullGuide: () => void
   );
 }
 
-function HighlightCarousel({ onNavigate, allPros }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, chat?: any }) => void, allPros: Professional[] }) {
+function HighlightCarousel({ onNavigate, allPros, events }: { onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, chat?: any }) => void, allPros: Professional[], events: Event[] }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const featuredPro = allPros.length > 0 ? allPros[0] : null;
+  const featuredEvent = events.length > 0 ? events[0] : null;
 
   const slidesRaw = [
+    featuredEvent ? {
+      type: 'event',
+      title: featuredEvent.title,
+      location: featuredEvent.location,
+      image: featuredEvent.image,
+      tag: 'Event of the week',
+      date: {
+        day: featuredEvent.start_date ? featuredEvent.start_date.split('-')[1] : featuredEvent.date.split(' ')[0], // Simple heuristic
+        num: featuredEvent.start_date ? featuredEvent.start_date.split('-')[2] : featuredEvent.date.split(' ')[1]
+      },
+      action: () => onNavigate('events', { eventId: featuredEvent.id })
+    } : null,
     featuredPro ? {
       type: 'pro',
       pro: featuredPro,
@@ -3725,10 +3985,11 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
   const [isInputFocused, setIsInputFocused] = useState(false);
 
   useEffect(() => {
-    // Auto focus on mount
-    setTimeout(() => {
+    // Auto focus on mount - faster
+    const timer = setTimeout(() => {
       inputRef.current?.focus();
-    }, 100);
+    }, 50);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -4243,7 +4504,7 @@ function MessagesView({ scrollToTop, initialChat, onClearInitial, onNavigate }: 
     <div className="max-w-6xl mx-auto w-full h-[calc(100vh-140px)] md:h-[calc(100vh-180px)] bg-white md:rounded-[32px] overflow-hidden shadow-sm border-x md:border border-slate-100 flex md:mt-4">
       {/* Sidebar - Hidden on mobile if a chat is selected */}
       <div className={cn(
-        "w-full md:w-80 border-r border-slate-100 flex flex-col transition-all duration-300",
+        "w-full md:w-80 border-r border-slate-100 flex flex-col transition-all duration-200",
         selectedChat ? "hidden md:flex" : "flex"
       )}>
         <div className="p-6 border-b border-slate-100 bg-white/50 backdrop-blur">
@@ -4279,7 +4540,7 @@ function MessagesView({ scrollToTop, initialChat, onClearInitial, onNavigate }: 
 
       {/* Chat Area - Full screen on mobile if a chat is selected */}
       <div className={cn(
-        "flex-1 flex flex-col bg-slate-50/30 transition-all duration-300",
+        "flex-1 flex flex-col bg-slate-50/30 transition-all duration-200",
         selectedChat ? "flex" : "hidden md:flex"
       )}>
         {selectedChat ? (
@@ -4304,11 +4565,17 @@ function MessagesView({ scrollToTop, initialChat, onClearInitial, onNavigate }: 
                 </div>
               </div>
 
-              {selectedChat?.returnToProId && onNavigate && (
+              {onNavigate && (
                 <button 
-                  onClick={() => onNavigate('explore', { proId: selectedChat.returnToProId })}
+                  onClick={() => {
+                    if (selectedChat?.returnToProId) {
+                      onNavigate('explore', { proId: selectedChat.returnToProId });
+                    } else {
+                      onNavigate('home');
+                    }
+                  }}
                   className="p-2 bg-slate-50 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all group/close"
-                  title="Revenir au pro"
+                  title="Fermer"
                 >
                   <X className="w-5 h-5 transition-transform group-hover/close:rotate-90" />
                 </button>
@@ -4413,9 +4680,10 @@ function ProfessionalDetailView({ pro, onClose, onNavigate, onProUpdate }: { pro
     >
       <div className="min-h-full w-full max-w-4xl flex items-start p-4 md:p-8">
         <motion.div 
-          initial={{ scale: 0.95, opacity: 0, y: 30 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.95, opacity: 0, y: 30 }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 20 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
           className="bg-white w-full rounded-[40px] overflow-hidden shadow-2xl relative my-auto"
           onClick={e => e.stopPropagation()}
         >
@@ -4745,15 +5013,33 @@ function ProfessionalDetailView({ pro, onClose, onNavigate, onProUpdate }: { pro
 
 function EventsView({ initialEventId, onModalClose, scrollToTop }: { initialEventId?: string | null, onModalClose?: () => void, scrollToTop?: () => void }) {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [events, setEvents] = useState<Event[]>(MOCK_EVENTS);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (initialEventId) {
-      const event = MOCK_EVENTS.find(e => e.id === initialEventId);
+    const loadEvents = async () => {
+      try {
+        const data = await eventService.getEvents();
+        if (data && data.length > 0) {
+          setEvents(data);
+        }
+      } catch (err) {
+        console.error('Failed to load events:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadEvents();
+  }, []);
+
+  useEffect(() => {
+    if (initialEventId && events.length > 0) {
+      const event = events.find(e => e.id === initialEventId);
       if (event) {
         setSelectedEvent(event);
       }
     }
-  }, [initialEventId]);
+  }, [initialEventId, events]);
 
   return (
     <div className="p-6 space-y-6">
@@ -4762,8 +5048,14 @@ function EventsView({ initialEventId, onModalClose, scrollToTop }: { initialEven
         <p className="text-slate-500">Discover meetups and cultural events.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto w-full">
-        {MOCK_EVENTS.map(event => (
+      {loading && events.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 space-y-4">
+          <Loader2 className="w-10 h-10 text-brand-blue animate-spin" />
+          <p className="text-slate-400 font-medium">Discovering best events...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto w-full">
+          {events.map(event => (
           <div 
             key={event.id} 
             className="card bg-white group hover-lift cursor-pointer"
@@ -4771,9 +5063,15 @@ function EventsView({ initialEventId, onModalClose, scrollToTop }: { initialEven
           >
             <div className="h-40 overflow-hidden relative">
               <img src={event.image} alt={event.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-              <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-lg text-center">
-                <p className="text-[10px] font-bold text-brand-blue uppercase">{event.date.split(' ')[0]}</p>
-                <p className="text-lg font-bold leading-none">{event.date.split(' ')[1]}</p>
+              <div className="absolute top-4 left-4 bg-white/90 backdrop-blur px-3 py-1 rounded-lg text-center min-w-[50px]">
+                <p className="text-[10px] font-bold text-brand-blue uppercase">
+                  {event.start_date || event.date}
+                </p>
+                {event.end_date && (
+                  <p className="text-[9px] font-medium text-slate-400 mt-0.5 border-t border-slate-100 pt-0.5">
+                    to {event.end_date}
+                  </p>
+                )}
               </div>
               <div className="absolute top-4 right-4 bg-black/50 backdrop-blur text-white p-2 rounded-full">
                 <Share2 className="w-4 h-4" />
@@ -4787,26 +5085,25 @@ function EventsView({ initialEventId, onModalClose, scrollToTop }: { initialEven
               <div className="flex items-center gap-4 text-xs text-slate-500">
                 <div className="flex items-center gap-1">
                   <Clock className="w-3 h-3" />
-                  {event.time}
+                  {event.start_time || event.time}
+                  {event.end_time && ` - ${event.end_time}`}
                 </div>
                 <div className="flex items-center gap-1">
                   <MapPin className="w-3 h-3" />
                   {event.location}
                 </div>
               </div>
-              <div className="flex justify-between items-center pt-2">
-                <div className="flex -space-x-2">
-                  {[1,2,3].map(i => (
-                    <div key={i} className="w-6 h-6 rounded-full border-2 border-white bg-slate-200" />
-                  ))}
-                  <div className="w-6 h-6 rounded-full border-2 border-white bg-slate-100 flex items-center justify-center text-[8px] font-bold">+{event.attendees - 3}</div>
-                </div>
-                <button className="btn-primary text-xs">Attend Event</button>
+              <div className="flex justify-end pt-2">
+                <span className="text-brand-blue font-bold text-xs flex items-center gap-1 group-hover:gap-2 transition-all">
+                  View Details
+                  <ArrowRight className="w-3 h-3" />
+                </span>
               </div>
             </div>
           </div>
         ))}
       </div>
+      )}
 
       <AnimatePresence>
         {selectedEvent && (
@@ -4839,9 +5136,10 @@ function EventDetailModal({ event, onClose }: { event: Event, onClose: () => voi
       onClick={onClose}
     >
       <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: 15 }}
+        transition={{ duration: 0.2, ease: "easeOut" }}
         className="relative bg-white w-full max-w-lg rounded-[32px] overflow-hidden shadow-2xl my-auto"
         onClick={e => e.stopPropagation()}
       >
@@ -4865,11 +5163,13 @@ function EventDetailModal({ event, onClose }: { event: Event, onClose: () => voi
             <div className="flex flex-wrap gap-4 text-sm text-slate-500">
               <div className="flex items-center gap-1.5 font-medium">
                 <Calendar className="w-4 h-4 text-brand-blue" />
-                {event.date}
+                {event.start_date || event.date}
+                {event.end_date && ` to ${event.end_date}`}
               </div>
               <div className="flex items-center gap-1.5 font-medium">
                 <Clock className="w-4 h-4 text-brand-blue" />
-                {event.time}
+                {event.start_time || event.time}
+                {event.end_time && ` - ${event.end_time}`}
               </div>
               <div className="flex items-center gap-1.5 font-medium">
                 <MapPin className="w-4 h-4 text-brand-blue" />
@@ -4881,21 +5181,46 @@ function EventDetailModal({ event, onClose }: { event: Event, onClose: () => voi
           <div className="space-y-4">
             <h3 className="font-bold text-slate-900">About this event</h3>
             <p className="text-slate-600 leading-relaxed text-sm">
-              Join our community meetup at {event.location}! This is a great opportunity to meet new people, share experiences, and enjoy the local atmosphere. Whether you're new to the city or a long-time resident, everyone is welcome.
+              {event.description || `Join us for ${event.title} at ${event.location}! This is a great opportunity to meet new people and enjoy the local atmosphere.`}
             </p>
           </div>
 
-          <div className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl">
-            <div className="flex -space-x-2">
-              {[1,2,3,4].map(i => (
-                <div key={i} className="w-8 h-8 rounded-full border-2 border-white bg-slate-200" />
-              ))}
-              <div className="w-8 h-8 rounded-full border-2 border-white bg-brand-blue/10 flex items-center justify-center text-[10px] font-bold text-brand-blue">
-                +{event.attendees - 4}
+          {event.coordinates && (
+            <div className="space-y-4">
+              <h3 className="font-bold text-slate-900">Location</h3>
+              <div className="h-48 w-full rounded-2xl overflow-hidden border border-slate-100 shadow-inner group">
+                <Map
+                  defaultCenter={event.coordinates}
+                  defaultZoom={15}
+                  gestureHandling="greedy"
+                  disableDefaultUI
+                  mapId="event_map"
+                >
+                  <AdvancedMarker position={event.coordinates}>
+                    <Pin background={'#0870B8'} glyphColor={'#FFFFFF'} borderColor={'#0870B8'} />
+                  </AdvancedMarker>
+                </Map>
               </div>
+              <p className="text-[10px] text-slate-400 flex items-center gap-1">
+                <Info className="w-3 h-3" />
+                {event.location}
+              </p>
             </div>
-            <button className="px-8 py-3 bg-brand-blue text-white rounded-xl font-bold text-sm shadow-lg shadow-brand-blue/20 active:scale-95 transition-all">
-              Attend Event
+          )}
+
+          <div className="pt-4">
+            <button 
+              onClick={() => {
+                const title = encodeURIComponent(event.title);
+                const details = encodeURIComponent(event.description || '');
+                const location = encodeURIComponent(event.location);
+                const googleUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}`;
+                window.open(googleUrl, '_blank');
+              }}
+              className="w-full py-4 bg-brand-blue text-white rounded-2xl font-bold text-sm shadow-xl shadow-brand-blue/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+            >
+              <Calendar className="w-4 h-4" />
+              Add to Calendar
             </button>
           </div>
         </div>
@@ -5161,6 +5486,7 @@ function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, on
 
   const menuItems = [
     ...(isAdmin ? [{ label: 'Admin Dashboard', icon: ShieldCheck, color: 'text-brand-blue', action: () => onNavigate?.('admin') }] : []),
+    { label: 'Private Messages', icon: MessageSquare, color: 'text-emerald-500', action: () => onNavigate?.('messages') },
     { label: 'Suggest a Pro', icon: Star, color: 'text-brand-yellow', action: () => setShowSuggestModal(true) },
     { label: 'Account Security', icon: Shield },
     { label: 'Change Password', icon: Lock },
@@ -5408,7 +5734,7 @@ function ProfileSubPage({ title, onBack, children }: { title: string, onBack: ()
       initial={{ x: '100%' }}
       animate={{ x: 0 }}
       exit={{ x: '100%' }}
-      transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+      transition={{ duration: 0.3, ease: "easeOut" }}
       className="fixed inset-0 bg-slate-50 z-[60] flex flex-col"
     >
       <div className="bg-white border-b border-slate-100 px-6 py-4 flex items-center gap-4">
@@ -5433,12 +5759,12 @@ function SplashScreen() {
       <motion.div 
         className="absolute inset-y-0 left-0 w-1/2 bg-white z-0"
         initial={{ x: 0 }}
-        exit={{ x: '-100%', transition: { duration: 0.8, ease: [0.7, 0, 0.3, 1] } }}
+        exit={{ x: '-100%', transition: { duration: 0.4, ease: [0.7, 0, 0.3, 1] } }}
       />
       <motion.div 
         className="absolute inset-y-0 right-0 w-1/2 bg-white z-0"
         initial={{ x: 0 }}
-        exit={{ x: '100%', transition: { duration: 0.8, ease: [0.7, 0, 0.3, 1] } }}
+        exit={{ x: '100%', transition: { duration: 0.4, ease: [0.7, 0, 0.3, 1] } }}
       />
 
       <motion.div 
@@ -5446,9 +5772,9 @@ function SplashScreen() {
         initial={{ opacity: 1 }}
         exit={{ 
           opacity: 0, 
-          scale: 1.1,
-          filter: "blur(10px)",
-          transition: { duration: 0.5, ease: "easeIn" } 
+          scale: 1.05,
+          filter: "blur(4px)",
+          transition: { duration: 0.3 } 
         }}
       >
         <div className="relative flex items-center justify-center h-48 mb-12">
