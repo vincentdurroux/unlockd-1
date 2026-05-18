@@ -3023,8 +3023,8 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="md:col-span-2 space-y-1.5">
+              <div className="grid grid-cols-1 gap-6">
+                <div className="space-y-1.5">
                   <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Event Title</label>
                   <input 
                     required
@@ -3035,76 +3035,80 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
                   />
                 </div>
                 
-                <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Start Date</label>
-                  <input 
-                    required
-                    type="date"
-                    value={newEvent.start_date}
-                    onChange={e => setNewEvent({...newEvent, start_date: e.target.value})}
-                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center px-1">
-                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">End Date (Optional)</label>
-                    {newEvent.end_date && (
-                      <button 
-                        type="button" 
-                        onClick={() => setNewEvent({...newEvent, end_date: ''})}
-                        className="text-[10px] text-brand-blue font-bold uppercase hover:text-brand-blue/80 transition-colors"
-                      >
-                        Clear
-                      </button>
-                    )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Start Date</label>
+                    <input 
+                      required
+                      type="date"
+                      value={newEvent.start_date}
+                      onChange={e => setNewEvent({...newEvent, start_date: e.target.value})}
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                    />
                   </div>
-                  <input 
-                    type="date"
-                    value={newEvent.end_date}
-                    onChange={e => setNewEvent({...newEvent, end_date: e.target.value})}
-                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
-                  />
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">End Date (Optional)</label>
+                      {newEvent.end_date && (
+                        <button 
+                          type="button" 
+                          onClick={() => setNewEvent({...newEvent, end_date: ''})}
+                          className="text-[10px] text-brand-blue font-bold uppercase hover:text-brand-blue/80 transition-colors"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <input 
+                      type="date"
+                      value={newEvent.end_date}
+                      onChange={e => setNewEvent({...newEvent, end_date: e.target.value})}
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center px-1">
-                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Start Time (Optional)</label>
-                    {newEvent.start_time && (
-                      <button 
-                        type="button" 
-                        onClick={() => setNewEvent({...newEvent, start_time: ''})}
-                        className="text-[10px] text-brand-blue font-bold uppercase hover:text-brand-blue/80 transition-colors"
-                      >
-                        Clear
-                      </button>
-                    )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Start Time (Optional)</label>
+                      {newEvent.start_time && (
+                        <button 
+                          type="button" 
+                          onClick={() => setNewEvent({...newEvent, start_time: ''})}
+                          className="text-[10px] text-brand-blue font-bold uppercase hover:text-brand-blue/80 transition-colors"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <input 
+                      type="time"
+                      value={newEvent.start_time}
+                      onChange={e => setNewEvent({...newEvent, start_time: e.target.value})}
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                    />
                   </div>
-                  <input 
-                    type="time"
-                    value={newEvent.start_time}
-                    onChange={e => setNewEvent({...newEvent, start_time: e.target.value})}
-                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <div className="flex justify-between items-center px-1">
-                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">End Time (Optional)</label>
-                    {newEvent.end_time && (
-                      <button 
-                        type="button" 
-                        onClick={() => setNewEvent({...newEvent, end_time: ''})}
-                        className="text-[10px] text-brand-blue font-bold uppercase hover:text-brand-blue/80 transition-colors"
-                      >
-                        Clear
-                      </button>
-                    )}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center px-1">
+                      <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">End Time (Optional)</label>
+                      {newEvent.end_time && (
+                        <button 
+                          type="button" 
+                          onClick={() => setNewEvent({...newEvent, end_time: ''})}
+                          className="text-[10px] text-brand-blue font-bold uppercase hover:text-brand-blue/80 transition-colors"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <input 
+                      type="time"
+                      value={newEvent.end_time}
+                      onChange={e => setNewEvent({...newEvent, end_time: e.target.value})}
+                      className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
+                    />
                   </div>
-                  <input 
-                    type="time"
-                    value={newEvent.end_time}
-                    onChange={e => setNewEvent({...newEvent, end_time: e.target.value})}
-                    className="w-full h-12 bg-slate-50 border border-slate-100 rounded-2xl px-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all font-display text-sm"
-                  />
                 </div>
 
                 <div className="space-y-1.5">
