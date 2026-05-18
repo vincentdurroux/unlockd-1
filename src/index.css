@@ -140,3 +140,18 @@ main, .app-content {
   overflow-y: auto !important;
   -webkit-overflow-scrolling: touch !important;
 }
+
+/* Force l'application et la page à avoir un fond blanc tout en bas */
+html, body, #root {
+  background-color: #ffffff !important;
+}
+
+/* Ajustement ultra-précis pour le menu de navigation du bas */
+footer, .app-footer, [role="navigation"] {
+  bottom: 0 !important;
+  height: calc(65px + env(safe-area-inset-bottom, 20px)) !important;
+  padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+  display: flex !important;
+  align-items: flex-start !important;
+  padding-top: 8px !important;
+}
