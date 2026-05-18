@@ -155,3 +155,17 @@ footer, .app-footer, [role="navigation"] {
   align-items: flex-start !important;
   padding-top: 8px !important;
 }
+
+/* Force l'écran à faire la taille réelle du téléphone sans la réserve Safari */
+html, body, #root {
+  height: 100svh !important;
+  min-height: 100svh !important;
+  max-height: 100svh !important;
+}
+
+/* On force l'application à s'ancrer au vrai bas de l'appareil */
+#root {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
