@@ -109,3 +109,34 @@ input, textarea, [contenteditable="true"] {
 .mask-fade-right {
   mask-image: linear-gradient(to right, black 85%, transparent 100%);
 }
+
+/* Fixer le Header tout en haut de l'écran avec la sécurité iPhone */
+header, .app-header {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  z-index: 50 !important;
+  padding-top: env(safe-area-inset-top, 24px) !important;
+  background-color: var(--color-bg) !important;
+}
+
+/* Fixer le Footer tout en bas de l'écran à la place de la barre de navigation */
+footer, .app-footer, .safe-area-bottom {
+  position: fixed !important;
+  bottom: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  z-index: 50 !important;
+  padding-bottom: env(safe-area-inset-bottom, 20px) !important;
+  background-color: var(--color-bg) !important;
+}
+
+/* Permettre au contenu du milieu de défiler sans passer sous les barres */
+main, .app-content {
+  padding-top: calc(60px + env(safe-area-inset-top, 24px)) !important;
+  padding-bottom: calc(60px + env(safe-area-inset-bottom, 20px)) !important;
+  height: 100% !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
