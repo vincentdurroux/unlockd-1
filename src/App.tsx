@@ -784,6 +784,15 @@ export default function App() {
     }
   };
 
+  const handleNavigate = (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string, chat?: any }) => {
+    if (params?.eventId) setInitialEventId(params.eventId);
+    if (params?.proId) setInitialProId(params.proId);
+    if (params?.guideId) setInitialGuideId(params.guideId);
+    if (params?.searchQuery) setInitialSearch(params.searchQuery);
+    if (params?.chat) setInitialChat(params.chat);
+    navigateTo(view);
+  };
+
   // Bottom Nav Items
   const navItems = [
     { id: 'home', label: 'Home', icon: Home },
@@ -998,14 +1007,7 @@ export default function App() {
                 <HomeView 
                   key="home" 
                   allPros={allPros}
-                  onNavigate={(view, params) => {
-                    if (params?.eventId) setInitialEventId(params.eventId);
-                    if (params?.proId) setInitialProId(params.proId);
-                    if (params?.guideId) setInitialGuideId(params.guideId);
-                    if (params?.searchQuery) setInitialSearch(params.searchQuery);
-                    if (params?.chat) setInitialChat(params.chat);
-                    navigateTo(view);
-                  }}
+                  onNavigate={handleNavigate}
                   onAddPro={() => setShowAddPro(true)} 
                   ads={ads} 
                   onSelectAd={setSelectedAd} 
@@ -1017,7 +1019,7 @@ export default function App() {
               {activeView === 'explore' && (
                 <ExploreView 
                   allPros={allPros}
-                  onNavigate={navigateTo} 
+                  onNavigate={handleNavigate} 
                   initialProId={initialProId}
                   initialSearch={initialSearch}
                   onModalClose={() => {
@@ -1048,7 +1050,7 @@ export default function App() {
                 <ProfileView 
                   key="profile" 
                   scrollToTop={scrollToTop}
-                  onNavigate={navigateTo}
+                  onNavigate={handleNavigate}
                 />
               )}
               {activeView === 'admin' && (
@@ -1073,6 +1075,7 @@ export default function App() {
                   scrollToTop={scrollToTop} 
                   initialChat={initialChat}
                   onClearInitial={() => setInitialChat(null)}
+                  onNavigate={handleNavigate}
                 />
               )}
             </motion.div>
@@ -3673,10 +3676,20 @@ function ProMap({ pros, onSelectPro, center }: { pros: Professional[], onSelectP
             <AdvancedMarker
               key={pro.id}
               position={pro.coordinates}
-              onClick={() => onSelectPro(pro)}
+              onClick={() => {
+                console.log('Marker clicked:', pro.name);
+                onSelectPro(pro);
+              }}
               title={pro.name}
             >
-              <div className="relative group/pin">
+              <div 
+                className="relative group/pin cursor-pointer"
+                onClick={(e) => {
+                  // Fallback for mobile if AdvancedMarker onClick is flaky
+                  e.stopPropagation();
+                  onSelectPro(pro);
+                }}
+              >
                 <Pin 
                   background={'#0038FF'} 
                   borderColor={'#fff'} 
@@ -3685,7 +3698,7 @@ function ProMap({ pros, onSelectPro, center }: { pros: Professional[], onSelectP
                 />
                 <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-white rounded-lg shadow-xl border border-slate-100 whitespace-nowrap opacity-0 group-hover/pin:opacity-100 transition-opacity pointer-events-none z-50">
                   <p className="text-[10px] font-bold text-brand-navy">{pro.name}</p>
-                  <p className="text-[8px] text-slate-400 font-medium">Click to see details</p>
+                  <p className="text-[8px] text-slate-400 font-medium whitespace-nowrap">Touch to see details</p>
                 </div>
               </div>
             </AdvancedMarker>
@@ -3758,11 +3771,27 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
   const scrollToPro = (pro: Professional) => {
     const element = document.getElementById(`pro-card-${pro.id}`);
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Use a more robust scrolling method for mobile compatibility
+      const headerOffset = 80;
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+
+      // Also try scrollIntoView as a secondary measure if supported
+      try {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } catch (e) {
+        console.warn('scrollIntoView failed, relying on window.scrollTo');
+      }
+
       // Add a temporary highlight effect
-      element.classList.add('ring-4', 'ring-brand-blue/30', 'scale-[1.02]');
+      element.classList.add('ring-4', 'ring-brand-blue/40', 'scale-[1.02]', 'z-20');
       setTimeout(() => {
-        element.classList.remove('ring-4', 'ring-brand-blue/30', 'scale-[1.02]');
+        element.classList.remove('ring-4', 'ring-brand-blue/40', 'scale-[1.02]', 'z-20');
       }, 2000);
     }
   };
@@ -4052,7 +4081,7 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
           <motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="w-full h-[400px] md:h-[500px] rounded-[40px] overflow-hidden border border-slate-100 shadow-2xl relative bg-slate-50"
+            className="w-full h-[300px] md:h-[400px] rounded-[40px] overflow-hidden border border-slate-100 shadow-2xl relative bg-slate-50"
           >
              <ProMap 
                pros={filteredPros} 
@@ -4072,7 +4101,7 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                   onClick={() => setSelectedPro(pro)}
-                  className="group relative bg-white rounded-[32px] p-6 flex flex-col sm:flex-row gap-6 border border-slate-100 transition-all shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:border-brand-blue/10 cursor-pointer overflow-hidden"
+                  className="group relative bg-white rounded-[32px] p-6 flex flex-col lg:flex-row gap-6 border border-slate-100 transition-all shadow-sm hover:shadow-xl hover:shadow-slate-200/50 hover:border-brand-blue/10 cursor-pointer overflow-hidden"
                 >
                   {/* Number Badge to match map pins */}
                   <div className="absolute top-6 right-6 w-8 h-8 bg-brand-blue text-white rounded-full flex items-center justify-center text-[10px] font-black shadow-lg shadow-brand-blue/20 z-10 transition-transform group-hover:scale-110">
@@ -4120,18 +4149,6 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
                             {lang}
                           </span>
                         ))}
-                        <button 
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedPro(pro);
-                            // We could trigger the modal directly if we had a way to pass this state
-                            // but for now opening the ProDetail is standard.
-                          }}
-                          className="px-2 py-1 bg-brand-blue/5 text-brand-blue rounded-lg text-[10px] font-bold border border-brand-blue/10 hover:bg-brand-blue hover:text-white transition-all flex items-center gap-1"
-                        >
-                          <Star className="w-2.5 h-2.5" />
-                          Review
-                        </button>
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px] font-medium text-slate-300 uppercase tracking-widest">
                          <MapPin className="w-3 h-3" />
@@ -4180,7 +4197,12 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
   );
 }
 
-function MessagesView({ scrollToTop, initialChat, onClearInitial }: { scrollToTop?: () => void, initialChat?: any, onClearInitial?: () => void }) {
+function MessagesView({ scrollToTop, initialChat, onClearInitial, onNavigate }: { 
+  scrollToTop?: () => void, 
+  initialChat?: any, 
+  onClearInitial?: () => void,
+  onNavigate?: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string, chat?: any }) => void
+}) {
   const [selectedChat, setSelectedChat] = useState<any | null>(null);
 
   useEffect(() => {
@@ -4281,6 +4303,16 @@ function MessagesView({ scrollToTop, initialChat, onClearInitial }: { scrollToTo
                   <p className="text-[10px] text-emerald-500 font-bold uppercase tracking-wider">{selectedChat.online ? 'Online' : 'Offline'}</p>
                 </div>
               </div>
+
+              {selectedChat?.returnToProId && onNavigate && (
+                <button 
+                  onClick={() => onNavigate('explore', { proId: selectedChat.returnToProId })}
+                  className="p-2 bg-slate-50 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all group/close"
+                  title="Revenir au pro"
+                >
+                  <X className="w-5 h-5 transition-transform group-hover/close:rotate-90" />
+                </button>
+              )}
             </div>
             <div className="flex-1 p-4 md:p-6 space-y-4 overflow-y-auto bg-slate-50/50">
               <div className="flex justify-end">
@@ -4425,91 +4457,95 @@ function ProfessionalDetailView({ pro, onClose, onNavigate, onProUpdate }: { pro
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
             <div className="lg:col-span-2 space-y-10">
-              {/* Direct Contact Bar - Vertical List */}
-              <div className="bg-slate-50/30 rounded-2xl p-4 space-y-3 w-full">
-                {pro.phone && (
-                  <div className="flex items-center gap-3">
-                    <Phone className="w-3.5 h-3.5 text-cyan-500/70" />
-                    <a href={`tel:${pro.phone}`} className="text-sm text-slate-500 hover:text-brand-blue transition-colors">{pro.phone}</a>
-                  </div>
-                )}
-                {pro.email && (
-                  <div className="flex items-center gap-3">
-                    <Mail className="w-3.5 h-3.5 text-brand-blue/70" />
-                    <a href={`mailto:${pro.email}`} className="text-sm text-slate-500 hover:text-brand-blue transition-colors break-all">{pro.email}</a>
-                  </div>
-                )}
-                {pro.website && (
-                  <div className="flex items-center gap-3">
-                    <Link className="w-3.5 h-3.5 text-slate-400/70" />
-                    <a 
-                      href={pro.website.startsWith('http') ? pro.website : `https://${pro.website}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="text-sm text-slate-500 hover:text-brand-blue transition-colors"
-                    >
-                      {pro.website.replace(/^https?:\/\/(www\.)?/, '')}
-                    </a>
-                  </div>
-                )}
-                {pro.instagram && (
-                  <div className="flex items-center gap-3">
-                    <Instagram className="w-3.5 h-3.5 text-pink-500/70" />
-                    <a 
-                      href={pro.instagram.startsWith('http') ? pro.instagram : `https://instagram.com/${pro.instagram.replace(/^@/, '')}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="text-sm text-slate-500 hover:text-brand-blue transition-colors"
-                    >
-                      {pro.instagram.startsWith('@') ? pro.instagram : `@${pro.instagram}`}
-                    </a>
-                  </div>
-                )}
-                {pro.languages && pro.languages.length > 0 && (
-                  <div className="flex items-center gap-3">
-                    <Globe className="w-3.5 h-3.5 text-slate-400/70" />
-                    <div className="flex flex-wrap gap-2">
-                      {pro.languages.map(lang => (
-                        <span key={lang} className="text-sm text-slate-500">{lang}</span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {pro.location && (
-                  <div className="space-y-4">
-                    <a 
-                      href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pro.location)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 group/loc cursor-pointer"
-                    >
-                      <MapPin className="w-3.5 h-3.5 text-rose-500/70 group-hover/loc:text-rose-500 transition-colors" />
-                      <span className="text-sm text-slate-500 group-hover/loc:text-brand-blue transition-colors underline decoration-slate-200 underline-offset-4">{pro.location}</span>
-                    </a>
-                    
-                    {/* Mini Map */}
-                    {pro.coordinates && (
-                      <div className="w-full h-40 rounded-2xl overflow-hidden border border-slate-100 shadow-sm relative group/map">
-                        <Map
-                          defaultCenter={pro.coordinates}
-                          defaultZoom={15}
-                          gestureHandling={'none'}
-                          disableDefaultUI={true}
-                          mapId="MINI_MAP"
-                          className="w-full h-full"
+              {/* Direct Contact & Info Bar */}
+              <div className="bg-slate-50/30 rounded-2xl p-6 space-y-6 w-full border border-slate-100/50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-3">
+                    {pro.phone && (
+                      <div className="flex items-center gap-3">
+                        <Phone className="w-3.5 h-3.5 text-cyan-500/70" />
+                        <a href={`tel:${pro.phone}`} className="text-sm text-slate-500 hover:text-brand-blue transition-colors font-medium">{pro.phone}</a>
+                      </div>
+                    )}
+                    {pro.email && (
+                      <div className="flex items-center gap-3">
+                        <Mail className="w-3.5 h-3.5 text-brand-blue/70" />
+                        <a href={`mailto:${pro.email}`} className="text-sm text-slate-500 hover:text-brand-blue transition-colors break-all font-medium">{pro.email}</a>
+                      </div>
+                    )}
+                    {pro.website && (
+                      <div className="flex items-center gap-3">
+                        <Link className="w-3.5 h-3.5 text-slate-400/70" />
+                        <a 
+                          href={pro.website.startsWith('http') ? pro.website : `https://${pro.website}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-sm text-slate-500 hover:text-brand-blue transition-colors font-medium"
                         >
-                          <AdvancedMarker position={pro.coordinates}>
-                            <Pin background="#E11D48" glyphColor="#fff" borderColor="#BE123D" />
-                          </AdvancedMarker>
-                        </Map>
-                        <div className="absolute inset-0 bg-transparent cursor-pointer" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pro.location!)}`, '_blank')} />
-                        <div className="absolute bottom-2 right-2 px-2 py-1 bg-white/90 backdrop-blur-md rounded-lg text-[10px] font-bold text-slate-500 border border-slate-200 opacity-0 group-hover/map:opacity-100 transition-opacity">
-                          Click for directions
+                          {pro.website.replace(/^https?:\/\/(www\.)?/, '')}
+                        </a>
+                      </div>
+                    )}
+                    {pro.instagram && (
+                      <div className="flex items-center gap-3">
+                        <Instagram className="w-3.5 h-3.5 text-pink-500/70" />
+                        <a 
+                          href={pro.instagram.startsWith('http') ? pro.instagram : `https://instagram.com/${pro.instagram.replace(/^@/, '')}`} 
+                          target="_blank" 
+                          rel="noopener noreferrer" 
+                          className="text-sm text-slate-500 hover:text-brand-blue transition-colors font-medium"
+                        >
+                          {pro.instagram.startsWith('@') ? pro.instagram : `@${pro.instagram}`}
+                        </a>
+                      </div>
+                    )}
+                    {pro.languages && pro.languages.length > 0 && (
+                      <div className="flex items-center gap-3">
+                        <Globe className="w-3.5 h-3.5 text-slate-400/70" />
+                        <div className="flex flex-wrap gap-2">
+                          {pro.languages.map(lang => (
+                            <span key={lang} className="text-sm text-slate-500 font-medium">{lang}</span>
+                          ))}
                         </div>
                       </div>
                     )}
                   </div>
-                )}
+
+                  <div className="space-y-4">
+                    {pro.location && (
+                      <>
+                        <a 
+                          href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pro.location)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-start gap-3 group/loc cursor-pointer"
+                        >
+                          <MapPin className="w-3.5 h-3.5 text-rose-500/70 group-hover/loc:text-rose-500 transition-colors mt-0.5" />
+                          <span className="text-sm text-slate-500 group-hover/loc:text-brand-blue transition-colors underline decoration-slate-200 underline-offset-4 font-medium leading-relaxed">{pro.location}</span>
+                        </a>
+                        
+                        {/* Mini Map */}
+                        {pro.coordinates && (
+                          <div className="w-full h-32 rounded-2xl overflow-hidden border border-slate-100 shadow-sm relative group/map">
+                            <Map
+                              defaultCenter={pro.coordinates}
+                              defaultZoom={15}
+                              gestureHandling={'none'}
+                              disableDefaultUI={true}
+                              mapId="MINI_MAP"
+                              className="w-full h-full"
+                            >
+                              <AdvancedMarker position={pro.coordinates}>
+                                <Pin background="#E11D48" glyphColor="#fff" borderColor="#BE123D" />
+                              </AdvancedMarker>
+                            </Map>
+                            <div className="absolute inset-0 bg-transparent cursor-pointer" onClick={() => window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pro.location!)}`, '_blank')} />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <section className="space-y-4">
@@ -4548,7 +4584,8 @@ function ProfessionalDetailView({ pro, onClose, onNavigate, onProUpdate }: { pro
                                     avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(review.author)}&background=random`,
                                     online: true,
                                     time: 'just now',
-                                    lastMsg: `Hello ${review.author}! I saw your review for ${pro.name}.`
+                                    lastMsg: `Hello ${review.author}! I saw your review for ${pro.name}.`,
+                                    returnToProId: pro.id
                                   }
                                 });
                                 onClose();
