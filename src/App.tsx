@@ -3046,7 +3046,18 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">End Date (Optional)</label>
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">End Date (Optional)</label>
+                    {newEvent.end_date && (
+                      <button 
+                        type="button" 
+                        onClick={() => setNewEvent({...newEvent, end_date: ''})}
+                        className="text-[10px] text-brand-blue font-bold uppercase hover:text-brand-blue/80 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                   <input 
                     type="date"
                     value={newEvent.end_date}
@@ -3056,7 +3067,18 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">Start Time (Optional)</label>
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Start Time (Optional)</label>
+                    {newEvent.start_time && (
+                      <button 
+                        type="button" 
+                        onClick={() => setNewEvent({...newEvent, start_time: ''})}
+                        className="text-[10px] text-brand-blue font-bold uppercase hover:text-brand-blue/80 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                   <input 
                     type="time"
                     value={newEvent.start_time}
@@ -3065,7 +3087,18 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400 px-1">End Time (Optional)</label>
+                  <div className="flex justify-between items-center px-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">End Time (Optional)</label>
+                    {newEvent.end_time && (
+                      <button 
+                        type="button" 
+                        onClick={() => setNewEvent({...newEvent, end_time: ''})}
+                        className="text-[10px] text-brand-blue font-bold uppercase hover:text-brand-blue/80 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
                   <input 
                     type="time"
                     value={newEvent.end_time}
@@ -3781,7 +3814,7 @@ function HighlightCarousel({ onNavigate, allPros, events }: { onNavigate: (view:
           }
         }}
         animate={{ x: `-${currentIndex * 100}%` }}
-        transition={{ type: "spring", stiffness: 300, damping: 30 }}
+        transition={{ type: "tween", ease: [0.32, 0.72, 0, 1], duration: 0.3 }}
       >
         {slides.map((slide, idx) => (
           <div key={idx} className="min-w-full px-1 h-full">
@@ -3792,7 +3825,7 @@ function HighlightCarousel({ onNavigate, allPros, events }: { onNavigate: (view:
               >
                 <div className="h-32 overflow-hidden relative">
                   <img src={slide.image} alt="" className="w-full h-full object-cover" />
-                  <div className="absolute top-3 left-3 bg-white/90 backdrop-blur px-2 py-1 rounded-lg text-center shadow-sm">
+                  <div className="absolute top-3 left-3 bg-white px-2 py-1 rounded-lg text-center shadow-sm">
                     <p className="text-[8px] font-bold text-brand-blue uppercase">{slide.date?.day}</p>
                     <p className="text-sm font-bold leading-none">{slide.date?.num}</p>
                   </div>
