@@ -73,7 +73,9 @@ import {
   Bike,
   MessageSquare,
   Check,
-  MoreHorizontal
+  MoreHorizontal,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { storageService } from './lib/storage';
 import { marketplaceService, Ad } from './services/marketplaceService';
@@ -86,6 +88,9 @@ import { APIProvider, Map, AdvancedMarker, Pin, useMapsLibrary } from '@vis.gl/r
 import { useProfessionals } from './hooks/useProfessionals';
 import { proService } from './services/proService';
 import { eventService } from './services/eventService';
+import { authService, Profile } from './services/authService';
+
+import { isSupabaseConfigured } from './lib/supabase';
 
 const GOOGLE_MAPS_KEY = process.env.GOOGLE_MAPS_PLATFORM_KEY || '';
 
@@ -270,7 +275,7 @@ function formatRelativeTime(dateString: string | undefined) {
 
 // --- Types ---
 
-type View = 'home' | 'explore' | 'events' | 'guides' | 'profile' | 'community' | 'marketplace' | 'community-thread' | 'messages' | 'admin';
+type View = 'home' | 'explore' | 'events' | 'guides' | 'profile' | 'community' | 'marketplace' | 'community-thread' | 'messages' | 'admin' | 'login' | 'complete-profile';
 
 interface Professional {
   id: string;
@@ -551,10 +556,12 @@ const MOCK_GUIDE: GuideStep[] = [
 // --- Components ---
 
 export default function App() {
-  const [isStarting, setIsStarting] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const mainRef = useRef<HTMLElement>(null);
   const { professionals: allPros, loading: prosLoading, refetch: refetchPros } = useProfessionals([]);
   const [activeView, setActiveView] = useState<View>('home');
+  const [authLoading, setAuthLoading] = useState(true);
   const [initialEventId, setInitialEventId] = useState<string | null>(null);
   const [initialProId, setInitialProId] = useState<string | null>(null);
   const [initialGuideId, setInitialGuideId] = useState<string | null>(null);
@@ -562,19 +569,19 @@ export default function App() {
   const [initialSearch, setInitialSearch] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useState<{ query: string; location: string; category: string; filters?: any }>({ query: '', location: '', category: 'All' });
 
+  // Handle auth enforcement
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsStarting(false);
-    }, 2800);
-    return () => clearTimeout(timer);
-  }, []);
+    if (!authLoading && !currentUser && activeView !== 'login') {
+      setActiveView('login');
+    }
+  }, [authLoading, currentUser, activeView]);
 
   const [showAddPro, setShowAddPro] = useState(false);
   const [showAddAd, setShowAddAd] = useState(false);
   const [selectedAd, setSelectedAd] = useState<Ad | any>(null);
   const [selectedPost, setSelectedPost] = useState<any | null>(null);
   const [ads, setAds] = useState<Ad[]>([]);
-  const [events, setEvents] = useState<Event[]>(MOCK_EVENTS);
+  const [events, setEvents] = useState<Event[]>(isSupabaseConfigured ? [] : MOCK_EVENTS);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]);
   const [city, setCity] = useState('Valencia');
@@ -692,9 +699,14 @@ export default function App() {
     const loadEvents = async () => {
       try {
         const data = await eventService.getEvents();
-        if (data && data.length > 0) setEvents(data);
+        if (data && data.length > 0) {
+          setEvents(data);
+        } else if (!isSupabaseConfigured) {
+          setEvents(MOCK_EVENTS);
+        }
       } catch (err) {
         console.error('Failed to load events:', err);
+        if (!isSupabaseConfigured) setEvents(MOCK_EVENTS);
       }
     };
     loadEvents();
@@ -834,7 +846,21 @@ export default function App() {
     }
   };
 
+  const isAdmin = proService.isAdmin(currentUser?.email || "") || userProfile?.is_admin;
+
   const handleNavigate = (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string, chat?: any }) => {
+    // Auth guard for specific views
+    if ((view === 'explore' || view === 'messages') && !currentUser) {
+      navigateTo('login');
+      return;
+    }
+
+    // Admin guard
+    if (view === 'admin' && !isAdmin) {
+      navigateTo('home');
+      return;
+    }
+
     if (params?.eventId) setInitialEventId(params.eventId);
     if (params?.proId) setInitialProId(params.proId);
     if (params?.guideId) setInitialGuideId(params.guideId);
@@ -884,6 +910,56 @@ export default function App() {
     setActiveView(view);
   };
 
+  useEffect(() => {
+    // Listen for auth changes
+    const { data: { subscription } } = authService.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        setCurrentUser(session.user);
+        loadProfile(session.user.id);
+        setAuthLoading(false);
+      } else {
+        setCurrentUser(null);
+        setUserProfile(null);
+        setActiveView('login');
+        setAuthLoading(false);
+      }
+    });
+
+    // Check current session
+    authService.getCurrentUser().then(user => {
+      if (user) {
+        setCurrentUser(user);
+        loadProfile(user.id);
+      } else {
+        setActiveView('login');
+      }
+      setAuthLoading(false);
+    }).catch(() => {
+      setActiveView('login');
+      setAuthLoading(false);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const loadProfile = async (userId: string) => {
+    try {
+      const profile = await authService.getProfile(userId);
+      setUserProfile(profile);
+      if (!profile || !profile.full_name) {
+        setActiveView('complete-profile');
+      } else {
+        if (activeView === 'login' || activeView === 'complete-profile') {
+          setActiveView('home');
+        }
+      }
+    } catch (err) {
+      console.error('Error loading profile:', err);
+    }
+  };
+
   const handleSwipe = (direction: 'left' | 'right') => {
     // Special cases for sub-views
     if (activeView === 'messages' && direction === 'right') {
@@ -914,123 +990,128 @@ export default function App() {
   return (
     <APIProvider apiKey={GOOGLE_MAPS_KEY} version="weekly">
       <div className="flex flex-col h-screen h-[100dvh] bg-white w-full mx-auto shadow-2xl overflow-hidden relative">
-      <AnimatePresence>
-        {isStarting && <SplashScreen />}
-      </AnimatePresence>
 
-      {/* Header */}
-      <header className="bg-white px-4 md:px-6 py-2 md:py-3 flex justify-between items-center border-b border-slate-100 flex-shrink-0 z-30">
-        <div className="flex flex-col md:flex-row items-center md:items-center gap-0.5 md:gap-6">
-          <div 
-            onClick={() => navigateTo('home')}
-            className="hover:opacity-80 transition-opacity cursor-pointer flex flex-col items-center md:items-start"
-          >
-            <Logo className="items-center md:items-start" />
-          </div>
-          
-          <div className="relative">
-            <button 
-              onClick={() => setShowCitySelector(!showCitySelector)}
-              className="flex items-center justify-center md:justify-start gap-1.5 md:gap-2 group transition-all"
-            >
-              <div className={cn(
-                "flex items-center justify-center w-3 h-3 md:w-4 md:h-4 rounded-full transition-colors",
-                showCitySelector ? "bg-rose-500 shadow-sm" : "bg-rose-50 group-hover:bg-rose-100"
-              )}>
-                <MapPin className={cn(
-                  "w-2 h-2 md:w-2.5 md:h-2.5 transition-colors",
-                  showCitySelector ? "text-white" : "text-rose-500"
-                )} />
-              </div>
-              <div className="flex flex-col items-start translate-y-[1px] md:translate-y-0">
-                <span className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.15em] md:tracking-[0.2em]">{city}</span>
-              </div>
-              <ChevronDown className={cn("w-2.5 h-2.5 md:w-3 md:h-3 text-slate-300 transition-transform duration-300", showCitySelector && "rotate-180")} />
-            </button>
-
-            <AnimatePresence>
-              {showCitySelector && (
-                <>
-                  <motion.div 
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="fixed inset-0 z-40" 
-                    onClick={() => setShowCitySelector(false)} 
-                  />
-                  <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                    transition={{ type: "spring", damping: 20, stiffness: 300 }}
-                    className="absolute top-full left-0 mt-3 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden"
-                  >
-                    <div className="p-2 space-y-1">
-                      <div className="px-3 py-2 border-b border-slate-50 mb-1">
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Your City</p>
-                      </div>
-                      <button
-                        onClick={() => {
-                          setCity('Valencia');
-                          setShowCitySelector(false);
-                        }}
-                        className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 rounded-xl transition-colors group"
-                      >
-                        <div className="flex items-center gap-3">
-                          <img src="/valencia.jpg" alt="Valencia" className="w-8 h-8 rounded-lg object-cover grayscale group-hover:grayscale-0 transition-all hover:scale-105" />
-                          <span className="font-semibold text-slate-700">Valencia</span>
-                        </div>
-                        <div className="w-2 h-2 bg-green-500 rounded-full ring-4 ring-green-50" />
-                      </button>
-                      
-                      <div className="mx-1 mt-2 p-3 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                        <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                          We're expanding! <br/>
-                          <span className="text-brand-blue">Unlock'd</span> is coming to Madrid & Barcelona soon.
-                        </p>
-                      </div>
-                    </div>
-                  </motion.div>
-                </>
-              )}
-            </AnimatePresence>
-          </div>
+      {authLoading ? (
+        <div className="flex-1 flex flex-col items-center justify-center p-6 bg-white animate-in fade-in duration-700">
+           <Logo className="scale-110 opacity-20" />
         </div>
-        <motion.button 
-          onClick={() => setShowAddPro(true)}
-          animate={{
-            scale: [1, 1.04, 1],
-          }}
-          transition={{
-            duration: 2.5,
-            repeat: Infinity,
-            ease: "easeInOut"
-          }}
-          className="relative w-12 h-12 md:w-14 md:h-14 flex items-center justify-center group flex-shrink-0 ml-2"
-        >
-          {/* Central Button */}
-          <div className="absolute inset-1.5 bg-brand-yellow rounded-full shadow-lg shadow-brand-yellow/30 flex items-center justify-center z-10 transition-all duration-300 group-hover:scale-110 group-active:scale-95">
-            <Plus className="w-5 h-5 text-white" />
+      ) : (
+        <>
+      {/* Header */}
+      {activeView !== 'login' && (
+        <header className="bg-white px-4 md:px-6 py-2 md:py-3 flex justify-between items-center border-b border-slate-100 flex-shrink-0 z-30">
+          <div className="flex flex-col md:flex-row items-center md:items-center gap-0.5 md:gap-6">
+            <div 
+              onClick={() => navigateTo('home')}
+              className="hover:opacity-80 transition-opacity cursor-pointer flex flex-col items-center md:items-start"
+            >
+              <Logo className="items-center md:items-start" />
+            </div>
+            
+            <div className="relative">
+              <button 
+                onClick={() => setShowCitySelector(!showCitySelector)}
+                className="flex items-center justify-center md:justify-start gap-1.5 md:gap-2 group transition-all"
+              >
+                <div className={cn(
+                  "flex items-center justify-center w-3 h-3 md:w-4 md:h-4 rounded-full transition-colors",
+                  showCitySelector ? "bg-rose-500 shadow-sm" : "bg-rose-50 group-hover:bg-rose-100"
+                )}>
+                  <MapPin className={cn(
+                    "w-2 h-2 md:w-2.5 md:h-2.5 transition-colors",
+                    showCitySelector ? "text-white" : "text-rose-500"
+                  )} />
+                </div>
+                <div className="flex flex-col items-start translate-y-[1px] md:translate-y-0">
+                  <span className="text-[10px] font-medium text-slate-500 uppercase tracking-[0.15em] md:tracking-[0.2em]">{city}</span>
+                </div>
+                <ChevronDown className={cn("w-2.5 h-2.5 md:w-3 md:h-3 text-slate-300 transition-transform duration-300", showCitySelector && "rotate-180")} />
+              </button>
+
+              <AnimatePresence>
+                {showCitySelector && (
+                  <>
+                    <motion.div 
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="fixed inset-0 z-40" 
+                      onClick={() => setShowCitySelector(false)} 
+                    />
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ type: "spring", damping: 20, stiffness: 300 }}
+                      className="absolute top-full left-0 mt-3 w-56 bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-hidden"
+                    >
+                      <div className="p-2 space-y-1">
+                        <div className="px-3 py-2 border-b border-slate-50 mb-1">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Select Your City</p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setCity('Valencia');
+                            setShowCitySelector(false);
+                          }}
+                          className="w-full flex items-center justify-between px-3 py-2.5 hover:bg-slate-50 rounded-xl transition-colors group"
+                        >
+                          <div className="flex items-center gap-3">
+                            <img src="/valencia.jpg" alt="Valencia" className="w-8 h-8 rounded-lg object-cover grayscale group-hover:grayscale-0 transition-all hover:scale-105" />
+                            <span className="font-semibold text-slate-700">Valencia</span>
+                          </div>
+                          <div className="w-2 h-2 bg-green-500 rounded-full ring-4 ring-green-50" />
+                        </button>
+                        
+                        <div className="mx-1 mt-2 p-3 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                          <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                            We're expanding! <br/>
+                            <span className="text-brand-blue">Unlock'd</span> is coming to Madrid & Barcelona soon.
+                          </p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-          
-          {/* Circular Text */}
-          <div className="absolute inset-0 w-full h-full">
-            <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
-              <defs>
-                <path
-                  id="circlePath"
-                  d="M 50, 50 m -43, 0 a 43,43 0 1,1 86,0 a 43,43 0 1,1 -86,0"
-                />
-              </defs>
-              <text className="text-[19px] font-black fill-brand-yellow tracking-[0.08em] uppercase">
-                <textPath xlinkHref="#circlePath">
-                  Recommend a Pro •
-                </textPath>
-              </text>
-            </svg>
-          </div>
-        </motion.button>
-      </header>
+          <motion.button 
+            onClick={() => setShowAddPro(true)}
+            animate={{
+              scale: [1, 1.04, 1],
+            }}
+            transition={{
+              duration: 2.5,
+              repeat: Infinity,
+              ease: "easeInOut"
+            }}
+            className="relative w-12 h-12 md:w-14 md:h-14 flex items-center justify-center group flex-shrink-0 ml-2"
+          >
+            {/* Central Button */}
+            <div className="absolute inset-1.5 bg-brand-yellow rounded-full shadow-lg shadow-brand-yellow/30 flex items-center justify-center z-10 transition-all duration-300 group-hover:scale-110 group-active:scale-95">
+              <Plus className="w-5 h-5 text-white" />
+            </div>
+            
+            {/* Circular Text */}
+            <div className="absolute inset-0 w-full h-full">
+              <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
+                <defs>
+                  <path
+                    id="circlePath"
+                    d="M 50, 50 m -43, 0 a 43,43 0 1,1 86,0 a 43,43 0 1,1 -86,0"
+                  />
+                </defs>
+                <text className="text-[19px] font-black fill-brand-yellow tracking-[0.08em] uppercase">
+                  <textPath xlinkHref="#circlePath">
+                    Recommend a Pro •
+                  </textPath>
+                </text>
+              </svg>
+            </div>
+          </motion.button>
+        </header>
+      )}
 
       {/* Main Content Area */}
       <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar relative pb-24">
@@ -1056,7 +1137,14 @@ export default function App() {
                   allPros={allPros}
                   events={events}
                   onNavigate={handleNavigate}
-                  onAddPro={() => setShowAddPro(true)} 
+                  userProfile={userProfile}
+                  onAddPro={() => {
+                    if (!currentUser) {
+                      handleNavigate('login');
+                    } else {
+                      setShowAddPro(true);
+                    }
+                  }} 
                   ads={ads} 
                   onSelectAd={setSelectedAd} 
                   onSelectPost={(post) => { setSelectedPost(post); navigateTo('community-thread'); }}
@@ -1084,6 +1172,7 @@ export default function App() {
                   initialEventId={initialEventId}
                   onModalClose={() => setInitialEventId(null)}
                   scrollToTop={scrollToTop}
+                  events={events}
                 />
               )}
               {activeView === 'guides' && (
@@ -1099,6 +1188,29 @@ export default function App() {
                   key="profile" 
                   scrollToTop={scrollToTop}
                   onNavigate={handleNavigate}
+                  currentUser={currentUser}
+                  userProfile={userProfile}
+                  onProfileUpdate={() => currentUser && loadProfile(currentUser.id)}
+                />
+              )}
+              {activeView === 'login' && (
+                <LoginView 
+                  key="login"
+                  onBack={() => navigateTo('home')}
+                  onLoginSuccess={() => navigateTo('home')}
+                  onSetUser={setCurrentUser}
+                  currentUser={currentUser}
+                />
+              )}
+
+              {activeView === 'complete-profile' && (
+                <ProfileSetupView
+                  key="complete-profile"
+                  currentUser={currentUser}
+                  onComplete={(profile) => {
+                    setUserProfile(profile);
+                    navigateTo('home');
+                  }}
                 />
               )}
               {activeView === 'admin' && (
@@ -1106,6 +1218,7 @@ export default function App() {
                   key="admin" 
                   onRefetchPros={refetchPros}
                   scrollToTop={scrollToTop}
+                  currentUser={currentUser}
                 />
               )}
               {activeView === 'marketplace' && (
@@ -1608,38 +1721,42 @@ export default function App() {
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 safe-area-bottom z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
-        <div className="flex items-center justify-between px-2 py-2 max-w-xl mx-auto">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => navigateTo(item.id as View)}
-              className={cn(
-                "relative flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all active:scale-95 min-w-0",
-                (activeView === item.id) ? "text-brand-blue" : "text-slate-400"
-              )}
-            >
-              {(activeView === item.id) && (
-                <motion.div 
-                  layoutId="activeTab"
-                  className="absolute inset-x-1 inset-y-0.5 bg-brand-blue/5 rounded-2xl -z-10"
-                  transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
-                />
-              )}
-              <item.icon className={cn(
-                "w-7 h-7 transition-all", 
-                (activeView === item.id) ? "stroke-[2.5px] text-brand-blue" : "stroke-[1.5px] text-slate-400"
-              )} />
-              <span className={cn(
-                "text-[10px] font-bold text-center truncate w-full px-1 transition-all",
-                (activeView === item.id) ? "text-brand-blue" : "text-slate-400 font-medium"
-              )}>
-                {item.label}
-              </span>
-            </button>
-          ))}
-        </div>
-      </nav>
+      {activeView !== 'login' && (
+        <nav className="fixed bottom-0 left-0 w-full bg-white border-t border-slate-100 safe-area-bottom z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+          <div className="flex items-center justify-between px-2 py-2 max-w-xl mx-auto">
+            {navItems.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => navigateTo(item.id as View)}
+                className={cn(
+                  "relative flex-1 flex flex-col items-center justify-center py-2 gap-0.5 transition-all active:scale-95 min-w-0",
+                  (activeView === item.id) ? "text-brand-blue" : "text-slate-400"
+                )}
+              >
+                {(activeView === item.id) && (
+                  <motion.div 
+                    layoutId="activeTab"
+                    className="absolute inset-x-1 inset-y-0.5 bg-brand-blue/5 rounded-2xl -z-10"
+                    transition={{ type: "spring", bounce: 0.2, duration: 0.6 }}
+                  />
+                )}
+                <item.icon className={cn(
+                  "w-7 h-7 transition-all", 
+                  (activeView === item.id) ? "stroke-[2.5px] text-brand-blue" : "stroke-[1.5px] text-slate-400"
+                )} />
+                <span className={cn(
+                  "text-[10px] font-bold text-center truncate w-full px-1 transition-all",
+                  (activeView === item.id) ? "text-brand-blue" : "text-slate-400 font-medium"
+                )}>
+                  {item.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        </nav>
+      )}
+      </>
+      )}
       </div>
     </APIProvider>
   );
@@ -2118,7 +2235,7 @@ function RecommendationItem({ rec, onUpdate, onStartAdding }: { rec: any, onUpda
   );
 }
 
-function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, onRefetchPros?: () => Promise<void> }) {
+function AdminView({ scrollToTop, onRefetchPros, currentUser }: { scrollToTop?: () => void, onRefetchPros?: () => Promise<void>, currentUser?: any }) {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dashboardCategory, setDashboardCategory] = useState<'pros' | 'events'>('pros');
@@ -2298,6 +2415,7 @@ function AdminView({ scrollToTop, onRefetchPros }: { scrollToTop?: () => void, o
 
       await eventService.createEvent({
         ...newEvent,
+        user_id: currentUser?.id,
         start_date: newEvent.start_date,
         end_date: newEvent.end_date,
         start_time: newEvent.start_time,
@@ -3386,7 +3504,380 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
   );
 }
 
-function HomeView({ onNavigate, allPros, events, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop, onProUpdate }: { 
+function ProfileSetupView({ currentUser, onComplete }: { currentUser: any, onComplete: (profile: Profile) => void }) {
+  const [fullName, setFullName] = useState('');
+  const [avatar, setAvatar] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        setError('Image size must be less than 2MB');
+        return;
+      }
+      setAvatar(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAvatarPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!fullName.trim()) {
+      setError('Please enter your full name');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      let avatarUrl = '';
+      if (avatar) {
+        avatarUrl = await authService.uploadAvatar(currentUser.id, avatar);
+      }
+
+      const profile = await authService.upsertProfile({
+        id: currentUser.id,
+        email: currentUser.email,
+        full_name: fullName.trim(),
+        avatar_url: avatarUrl || undefined,
+      });
+
+      onComplete(profile);
+    } catch (err: any) {
+      console.error('Error setting up profile:', err);
+      setError(err.message || 'Failed to complete profile setup');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-white z-[110] flex flex-col overflow-y-auto no-scrollbar">
+      {/* Decorative Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[10%] -right-[10%] w-[40%] h-[40%] bg-brand-blue/5 rounded-full blur-3xl" />
+        <div className="absolute top-[20%] -left-[5%] w-[30%] h-[30%] bg-brand-yellow/5 rounded-full blur-3xl" />
+      </div>
+
+      <div className="relative flex-1 flex flex-col items-center justify-center p-6 min-h-screen">
+        <div className="w-full max-w-sm space-y-8">
+          <div className="flex flex-col items-center text-center space-y-4">
+            <Logo />
+            <h2 className="text-2xl font-semibold text-brand-navy tracking-tight mt-6">Complete Your Profile</h2>
+            <p className="text-slate-400 text-sm font-medium">Almost there! Tell us a bit more about yourself.</p>
+          </div>
+
+          <div className="bg-white p-8 rounded-[40px] border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.04)] relative z-10">
+            {error && (
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-100 text-rose-600 text-sm font-semibold flex items-center gap-3 mb-6">
+                <AlertCircle className="w-5 h-5 shrink-0" />
+                {error}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Avatar Upload */}
+              <div className="flex flex-col items-center space-y-4">
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="relative group cursor-pointer"
+                >
+                  <div className="w-24 h-24 rounded-[32px] bg-slate-50 border-2 border-dashed border-slate-200 overflow-hidden flex items-center justify-center group-hover:border-brand-blue group-hover:bg-brand-blue/5 transition-all">
+                    {avatarPreview ? (
+                      <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                    ) : (
+                      <Camera className="w-8 h-8 text-slate-300 group-hover:text-brand-blue transition-colors" />
+                    )}
+                  </div>
+                  <div className="absolute -bottom-2 -right-2 w-8 h-8 bg-brand-blue text-white rounded-xl flex items-center justify-center shadow-lg shadow-brand-blue/20 group-hover:scale-110 transition-transform">
+                    <Plus className="w-4 h-4" />
+                  </div>
+                  <input 
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleAvatarChange}
+                    accept="image/*"
+                    className="hidden"
+                  />
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">Profile Photo</span>
+              </div>
+
+              {/* Full Name Input */}
+              <div className="space-y-2">
+                <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 px-1">Full Name</label>
+                <div className="relative group">
+                  <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 group-focus-within:bg-brand-blue/5 transition-colors">
+                    <User className={cn(
+                      "w-5 h-5 transition-colors",
+                      fullName ? "text-brand-blue" : "text-slate-300"
+                    )} />
+                  </div>
+                  <input 
+                    required
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="John Doe"
+                    className="w-full h-14 bg-slate-50 border border-slate-100 rounded-2xl pl-16 pr-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300 text-sm"
+                  />
+                </div>
+              </div>
+
+              <button 
+                disabled={isLoading}
+                type="submit"
+                className="w-full h-14 bg-brand-blue text-white rounded-2xl font-semibold text-sm uppercase tracking-widest shadow-xl shadow-brand-blue/20 hover:shadow-2xl hover:shadow-brand-blue/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-3"
+              >
+                {isLoading ? (
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                ) : (
+                  <>Continue <ArrowRight className="w-4 h-4" /></>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LoginView({ onBack, onLoginSuccess, onSetUser, currentUser }: { onBack: () => void, onLoginSuccess: () => void, onSetUser: (user: any) => void, currentUser?: any }) {
+  useEffect(() => {
+    if (currentUser) {
+      onLoginSuccess();
+    }
+  }, [currentUser, onLoginSuccess]);
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [step, setStep] = useState<'email' | 'password'>('email');
+  const [isNewUser, setIsNewUser] = useState(false);
+  const [showSignupToggle, setShowSignupToggle] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
+  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+
+  const handleContinue = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email) return;
+    setStep('password');
+  };
+
+  const handleAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+    setMessage(null);
+
+    try {
+      if (isNewUser) {
+        const { user } = await authService.signUp(email, password);
+        if (user) {
+          onSetUser(user);
+          // Redirection will be handled by loadProfile which is triggered by currentUser change in App.tsx
+          onLoginSuccess();
+        } else {
+          setMessage({ type: 'success', text: 'Account created! Please check your email to confirm.' });
+        }
+      } else {
+        try {
+          const { user } = await authService.signIn(email, password);
+          if (user) {
+            onSetUser(user);
+            onLoginSuccess();
+          }
+        } catch (error: any) {
+          if (error.message?.toLowerCase().includes('invalid login credentials')) {
+            setShowSignupToggle(true);
+            throw new Error('Invalid email or password. If you don\'t have an account yet, please click "Sign up" below.');
+          }
+          throw error;
+        }
+      }
+    } catch (error: any) {
+      console.error('Auth error:', error);
+      setMessage({ type: 'error', text: error.message || 'Authentication failed' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-white z-[100] flex flex-col overflow-y-auto no-scrollbar">
+      {/* Decorative Background Elements */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -top-[10%] -right-[10%] w-[40%] h-[40%] bg-brand-blue/5 rounded-full blur-3xl animate-float" />
+        <div className="absolute top-[20%] -left-[5%] w-[30%] h-[30%] bg-brand-yellow/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '-5s' }} />
+        <div className="absolute bottom-[10%] right-[5%] w-[25%] h-[25%] bg-brand-blue/5 rounded-full blur-3xl animate-float" style={{ animationDelay: '-10s' }} />
+      </div>
+
+      <div className="relative flex-1 flex flex-col items-center justify-center p-6 min-h-screen">
+        <div className="w-full max-w-sm space-y-10">
+          {/* Logo Section */}
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex flex-col items-center text-center space-y-6"
+          >
+            <Logo className="scale-110" />
+          </motion.div>
+
+          {/* Login Card */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.2 }}
+            className="w-full bg-white p-8 md:p-10 rounded-[40px] border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.04)] relative z-10"
+          >
+            <div className="text-center space-y-2 mb-10">
+              <h2 className="text-3xl font-bold text-brand-navy tracking-tight">
+                {isNewUser ? "Join Unlock'd" : "Sign In"}
+              </h2>
+            </div>
+
+            {message && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className={cn(
+                  "p-4 rounded-2xl text-sm font-semibold flex items-center gap-3 mb-8",
+                  message.type === 'success' 
+                    ? "bg-emerald-50 text-emerald-600 border border-emerald-100" 
+                    : "bg-rose-50 text-rose-600 border border-rose-100"
+                )}
+              >
+                {message.type === 'success' ? <CheckCircle2 className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
+                {message.text}
+              </motion.div>
+            )}
+
+            <form onSubmit={step === 'email' ? handleContinue : handleAuth} className="space-y-6">
+              {step === 'email' ? (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 px-1">Email Address</label>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 group-focus-within:bg-brand-blue/5 transition-colors">
+                      <Mail className={cn(
+                        "w-5 h-5 transition-colors",
+                        email ? "text-brand-blue" : "text-slate-300"
+                      )} />
+                    </div>
+                    <input 
+                      required
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@example.com"
+                      className="w-full h-14 bg-slate-50 border border-slate-100 rounded-2xl pl-16 pr-4 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300 placeholder:font-medium text-sm"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between px-1">
+                    <label className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Password</label>
+                    <button 
+                      type="button"
+                      onClick={() => setStep('email')}
+                      className="text-[10px] font-semibold uppercase tracking-[0.2em] text-brand-blue hover:underline"
+                    >
+                      Change email
+                    </button>
+                  </div>
+                  <div className="relative group">
+                    <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-xl bg-slate-50 group-focus-within:bg-brand-blue/5 transition-colors">
+                      <Lock className={cn(
+                        "w-5 h-5 transition-colors",
+                        password ? "text-brand-blue" : "text-slate-300"
+                      )} />
+                    </div>
+                    <input 
+                      required
+                      autoFocus
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full h-14 bg-slate-50 border border-slate-100 rounded-2xl pl-16 pr-14 font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-blue/20 transition-all placeholder:text-slate-300 placeholder:font-medium text-sm"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-4 top-1/2 -translate-y-1/2 p-2 hover:bg-slate-100 rounded-xl transition-colors text-slate-400 hover:text-slate-600"
+                    >
+                      {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center px-1">
+                <label className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative flex items-center justify-center">
+                    <input 
+                      type="checkbox"
+                      checked={rememberMe}
+                      onChange={(e) => setRememberMe(e.target.checked)}
+                      className="peer appearance-none w-5 h-5 border border-slate-200 rounded-[6px] bg-slate-50 checked:bg-brand-blue checked:border-brand-blue transition-all cursor-pointer"
+                    />
+                    <Check className="absolute w-3 h-3 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none stroke-[3]" />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-400 group-hover:text-slate-600 transition-colors select-none">Stay logged in</span>
+                </label>
+              </div>
+
+              <button 
+                disabled={isLoading}
+                type="submit"
+                className="w-full h-14 bg-brand-blue text-white rounded-2xl font-semibold text-sm uppercase tracking-widest shadow-xl shadow-brand-blue/20 hover:shadow-2xl hover:shadow-brand-blue/30 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-3 overflow-hidden relative group"
+              >
+                <div className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  {isLoading ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>{step === 'email' ? 'Continue' : isNewUser ? 'Sign up' : 'Sign In'} <ArrowRight className="w-4 h-4" /></>
+                  )}
+                </span>
+              </button>
+
+              <div className="text-center space-y-4">
+                <button 
+                  type="button"
+                  onClick={() => {
+                    setIsNewUser(!isNewUser);
+                    if (message) setMessage(null);
+                    // If we switch to signup, stay on email step to avoid confusion if we were at password
+                    if (!isNewUser) setStep('email');
+                  }}
+                  className="text-xs font-semibold text-slate-400 hover:text-brand-blue transition-colors"
+                >
+                  {isNewUser ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
+                </button>
+              </div>
+            </form>
+
+          </motion.div>
+
+
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HomeView({ onNavigate, allPros, events, onAddPro, ads, onSelectAd, onSelectPost, scrollToTop, onProUpdate, userProfile }: { 
   onNavigate: (view: View, params?: { eventId?: string, proId?: string, guideId?: string, searchQuery?: string, chat?: any }) => void, 
   allPros: Professional[], 
   events: Event[],
@@ -3395,7 +3886,8 @@ function HomeView({ onNavigate, allPros, events, onAddPro, ads, onSelectAd, onSe
   onSelectAd: (ad: Ad) => void, 
   onSelectPost: (post: any) => void, 
   scrollToTop?: () => void,
-  onProUpdate?: () => void
+  onProUpdate?: () => void,
+  userProfile: Profile | null
 }) {
   const feedRef = useRef<HTMLDivElement>(null);
   const [localSearch, setLocalSearch] = useState('');
@@ -3405,7 +3897,9 @@ function HomeView({ onNavigate, allPros, events, onAddPro, ads, onSelectAd, onSe
       {/* Welcome Section */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 text-center md:text-left mb-12">
         <div className="space-y-1 flex flex-col items-center md:items-start">
-          <h2 className="text-[22px] font-semibold font-display text-brand-navy">Hello, Vincent!</h2>
+          <h2 className="text-[22px] font-semibold font-display text-brand-navy">
+            Hello, {userProfile?.full_name ? userProfile.full_name.split(' ')[0] : 'Explorer'}!
+          </h2>
           <p className="text-slate-500 text-sm">Welcome back to your local community.</p>
         </div>
       </div>
@@ -4172,7 +4666,7 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
 
         return matchesCategory && matchesLanguage && matchesSearch && matchesDistance && matchesRating;
       })
-    : allPros;
+    : [];
 
   return (
     <div className="p-4 md:p-12 pt-20 md:pt-24 space-y-16 pb-32 max-w-7xl mx-auto">
@@ -4461,16 +4955,18 @@ function ExploreView({ allPros, onNavigate, initialProId, initialSearch, onModal
                 <div className="w-32 h-32 bg-slate-50 rounded-full flex items-center justify-center mx-auto ring-1 ring-slate-100">
                   <Search className="w-12 h-12 text-slate-200" />
                 </div>
-                <div className="space-y-2">
-                  <p className="text-slate-900 font-bold text-2xl">Your ideal pro is just a click away!</p>
-                  <p className="text-slate-400 max-w-md mx-auto font-medium">We didn't find a direct match this time, but the perfect connection is out there. Try shifting your filters or explore other categories!</p>
-                </div>
-                <button 
-                  onClick={() => { setSearch(''); setSelectedCategory('All'); setSelectedLanguage('All'); setMaxDistance('All'); setMinRating(0); }}
-                  className="mt-4 px-8 py-4 bg-brand-blue text-white rounded-2xl font-bold text-sm shadow-xl shadow-brand-blue/20 hover:scale-105 transition-all active:scale-95"
-                >
-                  Explore all pros
-                </button>
+                {!hasActiveFilter ? (
+                  <div className="space-y-2">
+                    <p className="text-slate-900 font-bold text-2xl">Start your search</p>
+                    <p className="text-slate-400 max-w-md mx-auto font-medium">Use the search bar or filters above to find the best local professionals recommended by the community.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-slate-900 font-bold text-2xl">No pros found</p>
+                    <p className="text-slate-400 max-w-md mx-auto font-medium">We didn't find any professional matching your search. Try different filters or keywords!</p>
+                  </div>
+                )}
+
               </div>
             )}
           </div>
@@ -5048,16 +5544,23 @@ function ProfessionalDetailView({ pro, onClose, onNavigate, onProUpdate }: { pro
 );
 }
 
-function EventsView({ initialEventId, onModalClose, scrollToTop }: { initialEventId?: string | null, onModalClose?: () => void, scrollToTop?: () => void }) {
+function EventsView({ initialEventId, onModalClose, scrollToTop, events: propEvents }: { initialEventId?: string | null, onModalClose?: () => void, scrollToTop?: () => void, events?: Event[] }) {
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
-  const [events, setEvents] = useState<Event[]>(MOCK_EVENTS);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState<Event[]>(propEvents && propEvents.length > 0 ? propEvents : (isSupabaseConfigured ? [] : MOCK_EVENTS));
+  const [loading, setLoading] = useState(!propEvents || propEvents.length === 0);
 
   useEffect(() => {
+    // Only fetch if not provided via props or if they're empty and we're configured
+    if (propEvents && propEvents.length > 0) {
+      setEvents(propEvents);
+      setLoading(false);
+      return;
+    }
+
     const loadEvents = async () => {
       try {
         const data = await eventService.getEvents();
-        if (data && data.length > 0) {
+        if (data) {
           setEvents(data);
         }
       } catch (err) {
@@ -5067,7 +5570,7 @@ function EventsView({ initialEventId, onModalClose, scrollToTop }: { initialEven
       }
     };
     loadEvents();
-  }, []);
+  }, [propEvents]);
 
   useEffect(() => {
     if (initialEventId && events.length > 0) {
@@ -5511,15 +6014,79 @@ function MarketplaceView({ onAddAd, ads, onSelectAd, scrollToTop }: { onAddAd: (
   );
 }
 
-function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, onNavigate?: (view: View) => void }) {
+function ProfileView({ scrollToTop, onNavigate, currentUser, userProfile, onProfileUpdate }: { scrollToTop?: () => void, onNavigate?: (view: View) => void, currentUser?: any, userProfile?: Profile | null, onProfileUpdate?: () => void }) {
   const [activeSubPage, setActiveSubPage] = useState<string | null>(null);
   const [showSuggestModal, setShowSuggestModal] = useState(false);
-  const userEmail = "vincentdurroux@gmail.com";
-  const isAdmin = proService.isAdmin(userEmail);
+  const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const userEmail = currentUser?.email || "";
+  const isAdmin = proService.isAdmin(userEmail) || userProfile?.is_admin;
 
   useEffect(() => {
     scrollToTop?.();
   }, [activeSubPage]);
+
+  const handleAvatarClick = () => {
+    avatarInputRef.current?.click();
+  };
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !currentUser) return;
+
+    setIsUpdatingAvatar(true);
+    try {
+      const fileName = `${currentUser.id}-${Date.now()}-${file.name.replace(/[^a-zA-Z0-9.]/g, '_')}`;
+      const path = `profiles/${fileName}`;
+      
+      // Use 'avatars' bucket as requested
+      const publicUrl = await storageService.uploadFile('avatars', path, file);
+      
+      await authService.updateProfile({
+        id: currentUser.id,
+        avatar_url: publicUrl
+      });
+      
+      onProfileUpdate?.();
+    } catch (error) {
+      console.error('Error updating avatar:', error);
+      alert('Failed to update avatar. Please ensure bucket "avatars" is configured.');
+    } finally {
+      setIsUpdatingAvatar(false);
+    }
+  };
+
+  if (!currentUser) {
+    return (
+      <div className="min-h-full flex flex-col items-center justify-center p-8 bg-slate-50 pb-32">
+        <div className="w-20 h-20 bg-brand-blue/10 rounded-[30px] flex items-center justify-center mb-6">
+          <User className="w-10 h-10 text-brand-blue opacity-50" />
+        </div>
+        <div className="text-center space-y-3 mb-10 max-w-xs">
+          <h2 className="text-2xl font-bold font-display text-brand-navy">Your Profile</h2>
+          <p className="text-slate-400 text-sm leading-relaxed">
+            Join the Unlock'd community to save your favorite pros, participate in events, and chat with members.
+          </p>
+        </div>
+        <button 
+          onClick={() => onNavigate?.('login')}
+          className="w-full max-w-[280px] py-4 bg-brand-blue text-white rounded-2xl font-bold shadow-lg shadow-brand-blue/20 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
+        >
+          <Lock className="w-5 h-5" />
+          Log In or Sign Up
+        </button>
+      </div>
+    );
+  }
+
+  const handleLogout = async () => {
+    try {
+      await authService.signOut();
+      onNavigate?.('home');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
 
   const menuItems = [
     ...(isAdmin ? [{ label: 'Admin Dashboard', icon: ShieldCheck, color: 'text-brand-blue', action: () => onNavigate?.('admin') }] : []),
@@ -5537,11 +6104,35 @@ function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, on
     <div className="pb-12">
       {/* Profile Header */}
       <div className="flex flex-col items-center pt-8 pb-10 bg-white border-b border-slate-100">
-        <div className="w-24 h-24 rounded-full bg-brand-blue/10 border-4 border-white shadow-sm overflow-hidden mb-4 flex items-center justify-center">
-          <User className="w-12 h-12 text-brand-blue" />
+        <div 
+          onClick={handleAvatarClick}
+          className="relative w-24 h-24 rounded-full bg-brand-blue/10 border-4 border-white shadow-sm overflow-hidden mb-4 flex items-center justify-center cursor-pointer group"
+        >
+          {userProfile?.avatar_url ? (
+            <img src={userProfile.avatar_url} alt="" className="w-full h-full object-cover group-hover:opacity-50 transition-opacity" />
+          ) : (
+            <User className="w-12 h-12 text-brand-blue group-hover:opacity-50 transition-opacity" />
+          )}
+          
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+            {isUpdatingAvatar ? (
+              <Loader2 className="w-6 h-6 text-white animate-spin" />
+            ) : (
+              <Camera className="w-6 h-6 text-white" />
+            )}
+          </div>
+          <input 
+            type="file"
+            ref={avatarInputRef}
+            onChange={handleAvatarChange}
+            accept="image/*"
+            className="hidden"
+          />
         </div>
         <div className="text-center">
-          <h2 className="text-xl font-semibold font-display text-brand-navy">Vincent D.</h2>
+          <h2 className="text-xl font-semibold font-display text-brand-navy">
+            {userProfile?.full_name || userEmail.split('@')[0]}
+          </h2>
           {isAdmin && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[10px] font-semibold uppercase tracking-widest rounded-full mt-1">
               <ShieldCheck className="w-3 h-3" /> Admin
@@ -5579,7 +6170,10 @@ function ProfileView({ scrollToTop, onNavigate }: { scrollToTop?: () => void, on
 
       {/* Logout Button */}
       <div className="px-6 mt-8">
-        <button className="w-full py-4 text-slate-500 font-medium hover:text-red-500 transition-colors flex items-center justify-center gap-2">
+        <button 
+          onClick={handleLogout}
+          className="w-full py-4 text-slate-500 font-medium hover:text-red-500 transition-colors flex items-center justify-center gap-2"
+        >
           <LogOut className="w-5 h-5" />
           Logout
         </button>
@@ -5783,87 +6377,6 @@ function ProfileSubPage({ title, onBack, children }: { title: string, onBack: ()
       <div className="flex-1 overflow-y-auto p-6 pb-24">
         {children}
       </div>
-    </motion.div>
-  );
-}
-
-function SplashScreen() {
-  return (
-    <motion.div
-      className="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-white"
-    >
-      {/* Background Panels for the "Door" effect */}
-      <motion.div 
-        className="absolute inset-y-0 left-0 w-1/2 bg-white z-0"
-        initial={{ x: 0 }}
-        exit={{ x: '-100%', transition: { duration: 0.4, ease: [0.7, 0, 0.3, 1] } }}
-      />
-      <motion.div 
-        className="absolute inset-y-0 right-0 w-1/2 bg-white z-0"
-        initial={{ x: 0 }}
-        exit={{ x: '100%', transition: { duration: 0.4, ease: [0.7, 0, 0.3, 1] } }}
-      />
-
-      <motion.div 
-        className="relative z-10 flex flex-col items-center"
-        initial={{ opacity: 1 }}
-        exit={{ 
-          opacity: 0, 
-          scale: 1.05,
-          filter: "blur(4px)",
-          transition: { duration: 0.3 } 
-        }}
-      >
-        <div className="relative flex items-center justify-center h-48 mb-12">
-          <motion.img
-            src="/logo.png"
-            alt="Unlock'd Logo"
-            initial={{ opacity: 0, scale: 0.8, filter: "blur(5px)" }}
-            animate={{ 
-              opacity: 1, 
-              scale: 1, 
-              filter: "blur(0px)",
-              rotate: [0, -5, 5, -5, 5, 0], // Shake animation
-            }}
-            transition={{ 
-              opacity: { duration: 1.2, delay: 0.2 },
-              scale: { duration: 1.2, delay: 0.2 },
-              filter: { duration: 1.2, delay: 0.2 },
-              rotate: { delay: 1.8, duration: 0.4, ease: "easeInOut" } // Key turn shake
-            }}
-            className="h-32 md:h-40 w-auto object-contain"
-            referrerPolicy="no-referrer"
-          />
-        </div>
-
-        {/* Tagline and Progress Bar - Sits BELOW the arcs */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="flex flex-col items-center"
-        >
-          <p className="text-xs md:text-sm font-medium text-slate-500 whitespace-nowrap px-4 text-center">
-            Real people. Trusted <span className="text-brand-blue">recommendations</span>
-          </p>
-          
-          {/* Loading Progress Bar */}
-          <motion.div
-            initial={{ width: 0, opacity: 0 }}
-            animate={{ width: "140px", opacity: 1 }}
-            transition={{ delay: 1.8, duration: 1.2, ease: "easeInOut" }}
-            className="h-[3px] bg-brand-blue/10 mt-8 rounded-full overflow-hidden relative"
-          >
-            <motion.div
-              animate={{ x: ["-100%", "100%"] }}
-              transition={{ duration: 1.5, repeat: Infinity, ease: "linear" }}
-              className="absolute inset-0 bg-brand-blue"
-            />
-          </motion.div>
-        </motion.div>
-      </motion.div>
-
-
     </motion.div>
   );
 }
