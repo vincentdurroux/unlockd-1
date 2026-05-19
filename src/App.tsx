@@ -1250,7 +1250,7 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-900/80 backdrop-blur-xl z-[100] overflow-y-auto overscroll-contain"
+              className="fixed inset-x-0 top-[60px] bottom-[80px] md:inset-0 bg-slate-900/80 backdrop-blur-xl z-[100] overflow-y-auto overscroll-contain"
               onClick={() => setShowAddPro(false)}
             >
               <div className="min-h-full flex items-start justify-center p-4">
@@ -1425,7 +1425,7 @@ export default function App() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 bg-slate-900/80 backdrop-blur-md z-[100] overflow-y-auto overscroll-contain touch-pan-y"
+              className="fixed inset-x-0 top-[60px] bottom-[80px] md:inset-0 bg-slate-900/80 backdrop-blur-md z-[100] overflow-y-auto overscroll-contain touch-pan-y"
               onClick={() => setShowAddAd(false)}
             >
               <div className="min-h-full flex items-start justify-center p-4 sm:p-6">
@@ -3280,7 +3280,7 @@ function AdminView({ scrollToTop, onRefetchPros, currentUser }: { scrollToTop?: 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
+            className="fixed inset-x-0 top-[60px] bottom-[80px] md:inset-0 z-[100] flex items-end sm:items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm"
             onClick={() => setShowConfirmModal(false)}
           >
             <motion.div
@@ -4019,7 +4019,7 @@ function ExpertGuideModal({ isOpen, onClose }: { isOpen: boolean, onClose: () =>
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-0 md:p-6 lg:p-8">
+      <div className="fixed inset-x-0 top-[60px] bottom-[80px] md:inset-0 z-[100] flex items-center justify-center p-0 md:p-6 lg:p-8">
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
