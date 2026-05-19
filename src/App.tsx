@@ -1118,16 +1118,16 @@ export default function App() {
         <motion.div
           className="min-h-full w-full max-w-full"
         >
-          <AnimatePresence custom={direction}>
+          <AnimatePresence mode="wait" custom={direction}>
             <motion.div
               key={activeView}
               custom={direction}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0, position: 'absolute', top: 0, left: 0, width: '100%' }}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
               transition={{ 
-                duration: 0.12,
-                ease: "linear"
+                duration: 0.35,
+                ease: [0.23, 1, 0.32, 1]
               }}
               className="min-h-full w-full"
             >
@@ -1809,7 +1809,7 @@ function AdDetailModal({ ad, onClose }: { ad: Ad | any, onClose: () => void }) {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       ref={scrollContainerRef}
-      className="fixed inset-0 z-50 overflow-y-auto overscroll-contain touch-pan-y"
+      className="fixed inset-x-0 top-[60px] bottom-[80px] md:inset-0 z-50 overflow-y-auto overscroll-contain touch-pan-y"
     >
       <div 
         className="min-h-full flex items-start justify-center p-4 py-12"
@@ -3385,7 +3385,7 @@ function SuggestProModal({ isOpen, onClose }: { isOpen: boolean, onClose: () => 
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="fixed inset-x-0 top-[60px] bottom-[80px] md:inset-0 z-[100] flex items-center justify-center p-4">
         <motion.div 
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -3714,7 +3714,7 @@ function LoginView({ onBack, onLoginSuccess, onSetUser, currentUser }: { onBack:
   };
 
   return (
-    <div className="fixed inset-0 bg-white z-[100] flex flex-col overflow-y-auto no-scrollbar">
+    <div className="flex-1 flex flex-col min-h-full bg-white relative">
       {/* Decorative Background Elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-[10%] -right-[10%] w-[40%] h-[40%] bg-brand-blue/5 rounded-full blur-3xl animate-float" />
@@ -3893,28 +3893,41 @@ function HomeView({ onNavigate, allPros, events, onAddPro, ads, onSelectAd, onSe
   const [localSearch, setLocalSearch] = useState('');
   
   return (
-    <div className="px-6 pt-12 pb-6 space-y-12 max-w-7xl mx-auto w-full">
+    <div className="px-6 pt-12 pb-6 space-y-12 max-w-7xl mx-auto w-full overflow-hidden">
       {/* Welcome Section */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 text-center md:text-left mb-12">
+      <motion.div 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5, delay: 0.1 }}
+        className="flex flex-col md:flex-row md:items-end justify-between gap-6 text-center md:text-left mb-12"
+      >
         <div className="space-y-1 flex flex-col items-center md:items-start">
           <h2 className="text-[22px] font-semibold font-display text-brand-navy">
             Hello, {userProfile?.full_name ? userProfile.full_name.split(' ')[0] : 'Explorer'}!
           </h2>
           <p className="text-slate-500 text-sm">Welcome back to your local community.</p>
         </div>
-      </div>
+      </motion.div>
 
       {/* Community Image Section */}
-      <div className="w-full flex justify-center -mb-2 relative z-0">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.6, delay: 0.2 }}
+        className="w-full flex justify-center -mb-2 relative z-0"
+      >
         <img 
           src="/people.jpg" 
           alt="Our Community" 
           className="w-[70%] md:w-[35%] h-auto max-h-[160px] md:max-h-[300px] object-contain block"
         />
-      </div>
+      </motion.div>
 
       {/* Hero Find Pro Section */}
       <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.3 }}
         whileHover={{ y: -4, boxShadow: "0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)" }}
         className="relative overflow-hidden rounded-[2rem] bg-white p-8 md:p-16 text-slate-900 border border-slate-100 shadow-sm transition-all duration-300"
       >
@@ -3958,7 +3971,12 @@ function HomeView({ onNavigate, allPros, events, onAddPro, ads, onSelectAd, onSe
         </div>
       </motion.div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:items-start">
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 0.4 }}
+        className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:items-start"
+      >
         {/* Highlights of the week carousel */}
         <div className="flex flex-col space-y-4">
           <div className="flex justify-between items-center">
@@ -3983,7 +4001,7 @@ function HomeView({ onNavigate, allPros, events, onAddPro, ads, onSelectAd, onSe
           </div>
           <ExpertGuidesPartners onReadFullGuide={() => onNavigate('guides', { guideId: 'gs-1' })} />
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -5208,7 +5226,7 @@ function ProfessionalDetailView({ pro, onClose, onNavigate, onProUpdate }: { pro
   return (
     <div 
       ref={scrollRef}
-      className="fixed inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] overflow-y-auto overscroll-contain flex justify-center" 
+      className="fixed inset-x-0 top-[60px] bottom-[80px] md:inset-0 bg-slate-900/60 backdrop-blur-xl z-[100] overflow-y-auto overscroll-contain flex justify-center" 
       onClick={onClose}
     >
       <div className="min-h-full w-full max-w-4xl flex items-start p-4 md:p-8">
@@ -5672,7 +5690,7 @@ function EventDetailModal({ event, onClose }: { event: Event, onClose: () => voi
   return (
     <div 
       ref={scrollRef}
-      className="fixed inset-0 z-[200] overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex justify-center p-4 py-8 md:py-16" 
+      className="fixed inset-x-0 top-[60px] bottom-[80px] md:inset-0 z-[100] overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex justify-center p-4 py-8 md:py-16" 
       onClick={onClose}
     >
       <motion.div
